@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>VfpReader</AssemblyName>
+    <RootNamespace>VfpReader</RootNamespace>
+    <PackageId>VfpReader</PackageId>
+    <Version>0.1.0</Version>
+    <Title>VFP / dBase table reader</Title>
+    <Description>Read-only, streaming reader for Visual FoxPro, FoxPro 2.x and dBASE III .dbf tables and their .fpt / .dbt memo files.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>dbf;foxpro;visual-foxpro;dbase;memo;fpt;dbt</PackageTags>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+  </ItemGroup>
+
+</Project>

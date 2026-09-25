@@ -1,0 +1,21 @@
+image: mcr.microsoft.com/dotnet/sdk:9.0
+
+stages:
+  - build
+  - test
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
+
+build:
+  stage: build
+  script:
+    - dotnet restore
+    - dotnet build --configuration Release --no-restore
+
+test:
+  stage: test
+  script:
+    - dotnet test --configuration Release --no-build
