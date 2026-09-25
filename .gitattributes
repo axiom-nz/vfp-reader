@@ -1,0 +1,3 @@
+# Fixture tables and their golden files are compared as bytes. Git must not
+# convert line endings in them, even on a checkout with core.autocrlf=true.
+test/fixtures/** binary
