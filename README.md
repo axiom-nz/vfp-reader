@@ -47,6 +47,22 @@ test/vfp-reader.Tests/  xUnit tests and the byte-level fixture builder
 tools/vfp-reader.Dump/  console schema / CSV dump for real-data checks
 ```
 
+`.loop/` holds the plan and the append-only loop state:
+
+```
+.loop/PLAN.md               # phases + current pointer
+.loop/PROGRESS.md           # compact index table of iterations; detail in progress/
+.loop/progress/*.md         # per-iteration handoff notes (full detail)
+.loop/DECISIONS.md          # compact index table of ADRs; detail in decisions/
+.loop/decisions/*.md        # per-iteration decision text (full detail)
+.loop/EVIDENCE.md           # compact index table of verifications (supervisor-owned)
+.loop/evidence/*.md         # raw gate output per verification (supervisor-owned)
+```
+
+`PROGRESS.md`, `DECISIONS.md` and `EVIDENCE.md` are deliberately kept small: one
+table row per step, with a 1–2 line summary and a link to the detail file. Open the
+detail file only when you need the full text.
+
 ## Attribution
 
 The format rules follow FoxDevStudio's [`crates/foxvm/src/dbf`](https://github.com/FoxDevCommunity/FoxDevStudio)
