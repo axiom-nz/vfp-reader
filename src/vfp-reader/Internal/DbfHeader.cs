@@ -16,7 +16,7 @@ namespace VfpReader.Internal
             long recordCount,
             int headerLength,
             int recordLength,
-            int codePage,
+            CodePage codePage,
             bool hasIndex,
             bool hasMemo,
             bool isDatabase,
@@ -50,7 +50,7 @@ namespace VfpReader.Internal
 
         internal int RecordLength { get; }
 
-        internal int CodePage { get; }
+        internal CodePage CodePage { get; }
 
         internal bool HasIndex { get; }
 

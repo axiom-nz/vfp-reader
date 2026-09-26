@@ -14,8 +14,8 @@ namespace VfpReader
 
         /// <summary>
         /// Overrides the code page recorded in header byte 29. Tables written with the wrong
-        /// language driver are common, so this is the escape hatch. When <c>null</c> the header
-        /// decides, falling back to 1252.
+        /// language driver are common, so this is the escape hatch. When <c>null</c>, leave it to
+        /// the header's language driver (<see cref="DbfSchema.CodePage"/>), falling back to 1252.
         /// </summary>
         public Encoding? Encoding { get; set; }
 

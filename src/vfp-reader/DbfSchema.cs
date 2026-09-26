@@ -17,7 +17,7 @@ namespace VfpReader
             int headerLength,
             int recordLength,
             DateTime? lastUpdate,
-            int codePage,
+            CodePage codePage,
             string databasePath,
             bool hasIndex,
             bool hasMemo,
@@ -52,8 +52,11 @@ namespace VfpReader
         /// <summary>The last-update date from bytes 1 to 3, or <c>null</c> when it is not a date.</summary>
         public DateTime? LastUpdate { get; }
 
-        /// <summary>The effective code page (the header's language driver, or a caller override).</summary>
-        public int CodePage { get; }
+        /// <summary>
+        /// The effective code page: the header's language driver, or the caller's
+        /// <see cref="DbfReadOptions.Encoding"/> override.
+        /// </summary>
+        public CodePage CodePage { get; }
 
         /// <summary>
         /// The path of the owning database (a <c>.dbc</c>) from the Visual FoxPro backlink; empty

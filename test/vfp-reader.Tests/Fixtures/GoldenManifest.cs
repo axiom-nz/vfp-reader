@@ -33,7 +33,7 @@ namespace VfpReader.Tests.Fixtures
             string? csv,
             string[] records,
             GoldenCapability rowsCapability,
-            int? encodingCodePage = null,
+            CodePage? encodingCodePage = null,
             string? skipReason = null)
         {
             Name = name;
@@ -66,7 +66,7 @@ namespace VfpReader.Tests.Fixtures
         /// language driver but stores UTF-8, and the golden was produced with UTF-8, so the test
         /// must pass it; the reader's documented no-driver default is 1252.
         /// </summary>
-        public int? EncodingCodePage { get; }
+        public CodePage? EncodingCodePage { get; }
 
         /// <summary>Set when this fixture is a known reader gap and its golden must skip.</summary>
         public string? SkipReason { get; }
@@ -104,9 +104,9 @@ namespace VfpReader.Tests.Fixtures
         public DbfTable Open()
         {
             var options = new DbfReadOptions();
-            if (EncodingCodePage is int codePage)
+            if (EncodingCodePage is CodePage codePage)
             {
-                options.Encoding = Encoding.GetEncoding(codePage);
+                options.Encoding = Encoding.GetEncoding((int)codePage);
             }
 
             return DbfTable.Open(TablePath, options);
@@ -128,7 +128,7 @@ namespace VfpReader.Tests.Fixtures
         {
             new GoldenFixture("dbase_02", "ruby-dbf", "dbase_02.dbf", "dbase_02_summary.txt", null, new string[0], GoldenCapability.FixedRecords, skipReason: "reader gap: FoxBase 0x02 uses an 8-byte header and 16-byte field descriptors"),
             new GoldenFixture("dbase_03", "ruby-dbf", "dbase_03.dbf", "dbase_03_summary.txt", null, new string[0], GoldenCapability.FixedRecords),
-            new GoldenFixture("dbase_03_cyrillic", "ruby-dbf", "dbase_03_cyrillic.dbf", "dbase_03_cyrillic_summary.txt", null, new string[0], GoldenCapability.FixedRecords, encodingCodePage: 65001),
+            new GoldenFixture("dbase_03_cyrillic", "ruby-dbf", "dbase_03_cyrillic.dbf", "dbase_03_cyrillic_summary.txt", null, new string[0], GoldenCapability.FixedRecords, encodingCodePage: CodePage.Utf8),
             new GoldenFixture("cp1251", "ruby-dbf", "cp1251.dbf", "cp1251_summary.txt", null, new string[0], GoldenCapability.FixedRecords),
             new GoldenFixture("dbase_30", "ruby-dbf", "dbase_30.dbf", "dbase_30_summary.txt", null, new string[0], GoldenCapability.Memo),
             new GoldenFixture("dbase_31", "ruby-dbf", "dbase_31.dbf", "dbase_31_summary.txt", null, new string[0], GoldenCapability.FixedRecords),

@@ -236,7 +236,7 @@ namespace VfpReader.Tests
                 new MemoryStream(builder.Build()),
                 options: new DbfReadOptions { Encoding = Encoding.GetEncoding(850) });
 
-            Assert.Equal(850, table.Schema.CodePage);
+            Assert.Equal(CodePage.Ibm850, table.Schema.CodePage);
         }
 
         [Fact]
@@ -247,7 +247,7 @@ namespace VfpReader.Tests
 
             using DbfTable table = Open(builder);
 
-            Assert.Equal(1252, table.Schema.CodePage);
+            Assert.Equal(CodePage.Windows1252, table.Schema.CodePage);
         }
 
         [Fact]

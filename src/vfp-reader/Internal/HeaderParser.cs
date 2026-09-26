@@ -21,7 +21,7 @@ namespace VfpReader.Internal
             byte[] header,
             int headerLength,
             Encoding encoding,
-            int codePage,
+            CodePage codePage,
             string? path)
         {
             if (headerLength < HeaderSize)

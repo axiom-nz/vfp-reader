@@ -29,7 +29,7 @@ System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Inst
 using var table = DbfTable.Open("invoice.dbf", new DbfReadOptions
 {
     MemoPath = null,            // default: sibling .fpt / .dbt, case-insensitive
-    Encoding = null,            // default: from header byte 29, 1252 when 0
+    Encoding = null,            // default: header byte 29 (CodePage.Windows1252 when 0)
     IncludeDeleted = false,
     TrimCharacterFields = true,
 });
@@ -37,6 +37,7 @@ using var table = DbfTable.Open("invoice.dbf", new DbfReadOptions
 DbfSchema schema = table.Schema;
 foreach (DbfField field in schema.Fields)
     Console.WriteLine($"{field.Name} {field.Type} {field.Length},{field.Decimals} null={field.IsNullable}");
+Console.WriteLine($"code page {schema.CodePage}");   // e.g. CodePage.Ibm850
 ```
 
 ## Layout
@@ -71,6 +72,8 @@ text.
 
 The format rules follow FoxDevStudio's [`crates/foxvm/src/dbf`](https://github.com/FoxDevCommunity/FoxDevStudio)
 (MIT). The code-page map and layout rules are a C# port of `encoding.rs` and `layout.rs`.
+The language-driver ID table follows the dBase / FoxPro LDID list, as described by the
+XBase File Format Description and reproduced by `dbfread` and Ethan Furman's `dbf`.
 
 ## License
 

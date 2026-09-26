@@ -139,12 +139,12 @@ namespace VfpReader
             byte[] headerBytes = ReadHeader(dbf, path);
             int headerLength = headerBytes.Length;
 
-            int codePage;
+            CodePage codePage;
             Encoding encoding;
             if (options.Encoding is not null)
             {
                 encoding = options.Encoding;
-                codePage = encoding.CodePage;
+                codePage = (CodePage)encoding.CodePage;
             }
             else
             {
@@ -215,11 +215,11 @@ namespace VfpReader
             }
         }
 
-        private static Encoding ResolveEncoding(int codePage, string? path)
+        private static Encoding ResolveEncoding(CodePage codePage, string? path)
         {
             try
             {
-                return Encoding.GetEncoding(codePage);
+                return Encoding.GetEncoding((int)codePage);
             }
             catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException)
             {
@@ -229,7 +229,7 @@ namespace VfpReader
                         "Code page {0} is not available. On .NET Core, register the provider once at startup "
                         + "(Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);) and reference the "
                         + "System.Text.Encoding.CodePages package.",
-                        codePage),
+                        (int)codePage),
                     path,
                     null,
                     ex);
