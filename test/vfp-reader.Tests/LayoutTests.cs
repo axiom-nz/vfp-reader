@@ -45,6 +45,25 @@ namespace VfpReader.Tests
         }
 
         [Fact]
+        public void Normal_layout_is_used_when_wide_does_not_fit()
+        {
+            // C(10,1) can be read as a 266-byte wide-character field, but this table declares the
+            // ordinary 10-byte width (1 deletion flag + 10 + 4 = 15). The wide convention does not
+            // fit, so the reader must fall back to the normal one instead of rejecting the table.
+            var builder = new DbfBuilder { ExplicitRecordLength = 1 + 10 + 4 };
+            builder.AddField("TEXT", 'C', 10, decimals: 1);
+            builder.AddField("ID", 'I', 4);
+            builder.AddRecord(false, new byte[1 + 10 + 4 - 1]);
+
+            using DbfTable table = DbfTable.Open(new MemoryStream(builder.Build()));
+
+            Assert.Equal(10, table.Schema.Fields[0].Width);
+            Assert.Equal(1, table.Schema.Fields[0].Offset);
+            Assert.Equal(11, table.Schema.Fields[1].Offset);
+            Assert.Equal(4, table.Schema.Fields[1].Width);
+        }
+
+        [Fact]
         public void Record_length_too_small_for_the_fields_throws()
         {
             var builder = new DbfBuilder { ExplicitRecordLength = 1 + 5 };
