@@ -4,10 +4,10 @@ A read-only, streaming .NET library that reads the schema and rows of Visual Fox
 and dBASE III tables straight from disk. No OLE DB, no ODBC, no Visual FoxPro runtime, no 32-bit
 process.
 
-> **Status: Phase 2.** Header and field-descriptor parsing plus the schema are implemented, and
-> `VfpTable.ReadRows()` streams the fixed-width records of a table (all types except memo and
-> varlength). Memo files, null bits and the `DbDataReader` adapter are still to come.
-> See `.loop/PLAN.md` for the phase list.
+> **Status: Phase 3.** Header and field-descriptor parsing plus the schema are implemented,
+> `VfpTable.ReadRows()` streams the fixed-width records of a table, and memo text and binary are
+> read from the sibling `.fpt` / `.dbt` file. Null bits, varlength (`V` / `Q`) and the
+> `DbDataReader` adapter are still to come. See `.loop/PLAN.md` for the phase list.
 
 ## Scope
 
@@ -27,6 +27,8 @@ using VfpReader;
 // On .NET Core, code pages other than UTF-8 need the provider registered once:
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
+// Memo columns resolve through the sibling .fpt / .dbt file (or MemoPath). A table whose memo
+// file is absent reads its memo columns as null, never as an error.
 using var table = VfpTable.Open("invoice.dbf", new VfpReadOptions
 {
     MemoPath = null,            // default: sibling .fpt / .dbt, case-insensitive

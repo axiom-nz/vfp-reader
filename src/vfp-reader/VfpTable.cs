@@ -15,6 +15,7 @@ namespace VfpReader
     {
         private readonly Stream _dbf;
         private readonly Stream? _memo;
+        private readonly MemoReader? _memoReader;
         private readonly bool _ownsDbf;
         private readonly bool _ownsMemo;
         private readonly VfpReadOptions _options;
@@ -26,6 +27,7 @@ namespace VfpReader
         private VfpTable(
             Stream dbf,
             Stream? memo,
+            MemoReader? memoReader,
             bool ownsDbf,
             bool ownsMemo,
             VfpReadOptions options,
@@ -35,6 +37,7 @@ namespace VfpReader
         {
             _dbf = dbf;
             _memo = memo;
+            _memoReader = memoReader;
             _ownsDbf = ownsDbf;
             _ownsMemo = ownsMemo;
             _options = options;
@@ -179,7 +182,7 @@ namespace VfpReader
                     continue;
                 }
 
-                yield return new VfpRow(header, Encoding, record, number, _options.TrimCharacterFields);
+                yield return new VfpRow(header, Encoding, record, number, _options.TrimCharacterFields, _memoReader);
             }
         }
 
@@ -213,7 +216,63 @@ namespace VfpReader
             }
 
             VfpHeader header = HeaderParser.Parse(headerBytes, headerLength, encoding, codePage, path);
-            return new VfpTable(dbf, memo, ownsDbf, ownsMemo, options, header, encoding, path);
+
+            // A sibling memo file is only worth opening when the header says the table has one.
+            // The caller's explicit path wins; otherwise the .fpt / .dbt next to the table is
+            // probed case-insensitively.
+            if (memo is null && path is not null && header.HasMemo)
+            {
+                string? memoPath = ResolveMemoPath(path, options);
+                if (memoPath is not null)
+                {
+                    Stream opened = new FileStream(memoPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    try
+                    {
+                        MemoReader? ownedReader = MemoReader.ForVersion(opened, header.Version);
+                        return new VfpTable(dbf, opened, ownedReader, ownsDbf, ownsMemo: true, options, header, encoding, path);
+                    }
+                    catch
+                    {
+                        opened.Dispose();
+                        throw;
+                    }
+                }
+            }
+
+            MemoReader? memoReader = memo is null ? null : MemoReader.ForVersion(memo, header.Version);
+            return new VfpTable(dbf, memo, memoReader, ownsDbf, ownsMemo, options, header, encoding, path);
+        }
+
+        /// <summary>
+        /// Finds the memo file that sits beside <paramref name="tablePath"/>. An explicit
+        /// <see cref="VfpReadOptions.MemoPath"/> wins; otherwise the sibling whose name is the
+        /// table's base name plus <c>.fpt</c> or <c>.dbt</c> is used, in any case.
+        /// </summary>
+        private static string? ResolveMemoPath(string tablePath, VfpReadOptions options)
+        {
+            if (!string.IsNullOrEmpty(options.MemoPath))
+            {
+                return options.MemoPath;
+            }
+
+            string? directory = Path.GetDirectoryName(tablePath);
+            if (string.IsNullOrEmpty(directory))
+            {
+                directory = ".";
+            }
+
+            string baseName = Path.GetFileNameWithoutExtension(tablePath);
+            string[] extensions = { ".fpt", ".FPT", ".dbt", ".DBT" };
+            foreach (string extension in extensions)
+            {
+                string candidate = Path.Combine(directory, baseName + extension);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         private static byte[] ReadHeader(Stream dbf, string? path)

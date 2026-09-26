@@ -25,13 +25,21 @@ namespace VfpReader
         private readonly Encoding _encoding;
         private readonly byte[] _record;
         private readonly bool _trim;
+        private readonly MemoReader? _memo;
 
-        internal VfpRow(VfpHeader header, Encoding encoding, byte[] record, long recordNumber, bool trim)
+        internal VfpRow(
+            VfpHeader header,
+            Encoding encoding,
+            byte[] record,
+            long recordNumber,
+            bool trim,
+            MemoReader? memo = null)
         {
             _header = header;
             _encoding = encoding;
             _record = record;
             _trim = trim;
+            _memo = memo;
             RecordNumber = recordNumber;
         }
 
@@ -58,8 +66,9 @@ namespace VfpReader
         /// <see cref="string"/>, <c>N</c> a <see cref="decimal"/>, <c>F</c> / <c>B</c> / <c>O</c>
         /// a <see cref="double"/>, <c>I</c> / <c>+</c> an <see cref="int"/>, <c>Y</c> a
         /// <see cref="decimal"/>, <c>L</c> a <see cref="bool"/>, <c>D</c> / <c>T</c> / <c>@</c> a
-        /// <see cref="DateTime"/>, and <c>Unknown</c> a <c>byte[]</c>. A blank or unparseable
-        /// fixed value is <c>null</c>.
+        /// <see cref="DateTime"/>, <c>M</c> a <see cref="string"/> read from the memo file,
+        /// <c>G</c> / <c>P</c> / <c>W</c> a <c>byte[]</c> read from the memo file, and
+        /// <c>Unknown</c> a <c>byte[]</c>. A blank, unparseable or absent value is <c>null</c>.
         /// </summary>
         public object? this[int index]
         {
@@ -130,11 +139,12 @@ namespace VfpReader
                     return ReadDateTime(field.Offset);
 
                 case VfpFieldType.Memo:
+                    return ReadMemo(field, binary: false);
+
                 case VfpFieldType.General:
                 case VfpFieldType.Picture:
                 case VfpFieldType.Blob:
-                    throw new NotSupportedException(
-                        "Reading memo fields (type " + (char)field.Type + ") is not implemented yet.");
+                    return ReadMemo(field, binary: true);
 
                 case VfpFieldType.Varchar:
                 case VfpFieldType.Varbinary:
@@ -157,6 +167,30 @@ namespace VfpReader
             var bytes = new byte[field.Width];
             Buffer.BlockCopy(_record, field.Offset, bytes, 0, field.Width);
             return bytes;
+        }
+
+        /// <summary>
+        /// Resolves a memo value through the table's memo file. A table flagged as having memo
+        /// fields but opened without its sibling memo file reads as empty (D13), and a zero
+        /// pointer, non-text block or out-of-range length also reads as empty rather than throwing.
+        /// Text (<c>M</c>) is decoded with the table code page; general, picture and blob values
+        /// (<c>G</c> / <c>P</c> / <c>W</c>) are binary and returned as-is.
+        /// </summary>
+        private object? ReadMemo(VfpField field, bool binary)
+        {
+            if (_memo is null)
+            {
+                return null;
+            }
+
+            long block = _memo.Pointer(_record, field.Offset, field.Width);
+            byte[]? payload = _memo.Read(block);
+            if (payload is null)
+            {
+                return null;
+            }
+
+            return binary ? payload : _encoding.GetString(payload);
         }
 
         private object? ReadNumeric(VfpField field)

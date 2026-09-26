@@ -7,8 +7,9 @@ namespace VfpReader
     {
         /// <summary>
         /// The memo file to use. When <c>null</c> the sibling <c>.fpt</c> / <c>.dbt</c> file is
-        /// found case-insensitively. Ignored when a memo stream is passed to
-        /// <see cref="VfpTable.Open(System.IO.Stream,System.IO.Stream,VfpReadOptions)"/>.
+        /// found case-insensitively. Only consulted by
+        /// <see cref="VfpTable.Open(string,VfpReadOptions?)"/>; a memo stream passed to
+        /// <see cref="VfpTable.Open(System.IO.Stream,System.IO.Stream,VfpReadOptions)"/> wins.
         /// </summary>
         public string? MemoPath { get; set; }
 
