@@ -20,6 +20,12 @@ namespace VfpReader.Internal
         /// <summary>Bytes in an FPT block header, and in a dBASE IV block header.</summary>
         private const int BlockHeaderSize = 8;
 
+        /// <summary>
+        /// The FPT block type of a text memo. FoxPro writes <c>1</c> for a memo (<c>M</c>);
+        /// picture (<c>0</c>), object (<c>2</c>) and unknown types hold binary data.
+        /// </summary>
+        private const uint FoxProTextBlockType = 1;
+
         /// <summary>The block size FoxPro falls back to when its header cannot be read.</summary>
         private const int DefaultFoxProBlockSize = 64;
 
@@ -88,11 +94,18 @@ namespace VfpReader.Internal
 
         /// <summary>
         /// Reads the raw memo payload at <paramref name="block"/>, or <c>null</c> when there is no
-        /// value: a zero or negative pointer, a short block header, a non-text FPT block, a length
-        /// past the end of the file, or a stream that cannot be seeked. Memo quirks read as empty
-        /// rather than throwing; a missing memo file is handled by the caller.
+        /// value: a zero or negative pointer, a short block header, an FPT block whose type does
+        /// not match <paramref name="binary"/>, a length past the end of the file, or a stream that
+        /// cannot be seeked. Memo quirks read as empty rather than throwing; a missing memo file is
+        /// handled by the caller.
         /// </summary>
-        public byte[]? Read(long block)
+        /// <param name="block">The 1-based memo block number from the record.</param>
+        /// <param name="binary">
+        /// <c>true</c> for a General / Picture / Blob (<c>G</c> / <c>P</c> / <c>W</c>) field,
+        /// which must live in a non-text FPT block; <c>false</c> for a text memo (<c>M</c>).
+        /// dBASE III/IV blocks carry no type, so the flag is only enforced for FoxPro FPT.
+        /// </param>
+        public byte[]? Read(long block, bool binary)
         {
             if (block <= 0)
             {
@@ -102,7 +115,7 @@ namespace VfpReader.Internal
             switch (_format)
             {
                 case MemoFormat.FoxPro:
-                    return ReadFoxPro(block);
+                    return ReadFoxPro(block, binary);
 
                 case MemoFormat.Dbase3:
                     return ReadDbase3(block);
@@ -185,10 +198,11 @@ namespace VfpReader.Internal
 
         /// <summary>
         /// FoxPro / Visual FoxPro FPT: the block begins with a big-endian type and a big-endian
-        /// length. Only a type of 1 (text) is a value; other types belong to general or picture
-        /// fields and read as empty here. The length may span blocks.
+        /// length. A text memo is a type-1 block; a General / Picture / Blob memo is a picture
+        /// (type 0), object (type 2) or otherwise non-text block. A block whose type does not
+        /// match the field reads as empty. The length may span blocks.
         /// </summary>
-        private byte[]? ReadFoxPro(long block)
+        private byte[]? ReadFoxPro(long block, bool binary)
         {
             if (!TrySeek(block * FoxProBlockSize()))
             {
@@ -203,7 +217,8 @@ namespace VfpReader.Internal
 
             uint type = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(0));
             uint size = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(4));
-            if (type != 1 || size == 0)
+            bool isText = type == FoxProTextBlockType;
+            if (size == 0 || (binary ? isText : !isText))
             {
                 return null;
             }

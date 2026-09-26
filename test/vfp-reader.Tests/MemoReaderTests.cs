@@ -229,7 +229,7 @@ namespace VfpReader.Tests
         public void Binary_memo_types_return_raw_bytes(char type)
         {
             byte[] payload = { 0x00, 0x01, 0xFE, 0xFF };
-            byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Text(payload) });
+            byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Binary(payload) });
             byte[] dbf = MemoTable(0x30, type, 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, memo);
@@ -237,6 +237,34 @@ namespace VfpReader.Tests
 
             Assert.IsType<byte[]>(row["MEMO"]);
             Assert.Equal(payload, (byte[])row["MEMO"]!);
+        }
+
+        [Fact]
+        public void Picture_memo_block_returns_raw_bytes()
+        {
+            // Type 0 is a picture / general block; only type 1 is text.
+            byte[] payload = { 0x89, 0x50, 0x4E, 0x47 };
+            byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Picture(payload) });
+            byte[] dbf = MemoTable(0x30, 'P', 4, ByteOrder.LittleEndianUInt32(1));
+
+            using VfpTable table = Open(dbf, memo);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.IsType<byte[]>(row["MEMO"]);
+            Assert.Equal(payload, (byte[])row["MEMO"]!);
+        }
+
+        [Fact]
+        public void Binary_memo_with_a_text_block_reads_as_null()
+        {
+            // A binary field must live in a non-text block; a type-1 block is a text memo.
+            byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Text("not binary") });
+            byte[] dbf = MemoTable(0x30, 'G', 4, ByteOrder.LittleEndianUInt32(1));
+
+            using VfpTable table = Open(dbf, memo);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Null(row["MEMO"]);
         }
 
         // ---- Discovery, missing files and the Phase 4 guard ----
@@ -454,6 +482,11 @@ namespace VfpReader.Tests
             internal static FptEntry Binary(byte[] bytes)
             {
                 return new FptEntry(2, bytes);
+            }
+
+            internal static FptEntry Picture(byte[] bytes)
+            {
+                return new FptEntry(0, bytes);
             }
 
             internal static FptEntry Empty()

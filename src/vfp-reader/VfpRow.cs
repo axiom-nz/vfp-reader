@@ -217,9 +217,10 @@ namespace VfpReader
         /// <summary>
         /// Resolves a memo value through the table's memo file. A table flagged as having memo
         /// fields but opened without its sibling memo file reads as empty (D13), and a zero
-        /// pointer, non-text block or out-of-range length also reads as empty rather than throwing.
-        /// Text (<c>M</c>) is decoded with the table code page; general, picture and blob values
-        /// (<c>G</c> / <c>P</c> / <c>W</c>) are binary and returned as-is.
+        /// pointer, a block whose FPT type does not match the field, or an out-of-range length
+        /// also reads as empty rather than throwing. Text (<c>M</c>) is a type-1 FPT block decoded
+        /// with the table code page; General, Picture and Blob values (<c>G</c> / <c>P</c> /
+        /// <c>W</c>) are the non-text block types and are returned as-is.
         /// </summary>
         private object? ReadMemo(VfpField field, bool binary)
         {
@@ -229,7 +230,7 @@ namespace VfpReader
             }
 
             long block = _memo.Pointer(_record, field.Offset, field.Width);
-            byte[]? payload = _memo.Read(block);
+            byte[]? payload = _memo.Read(block, binary);
             if (payload is null)
             {
                 return null;
