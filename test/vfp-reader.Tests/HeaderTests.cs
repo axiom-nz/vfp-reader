@@ -32,6 +32,24 @@ namespace VfpReader.Tests
         }
 
         [Fact]
+        public void Record_count_uses_four_bytes()
+        {
+            // The record count at bytes 4..7 is a 32-bit little-endian value. Read as 16 bits
+            // the same header would report 65535.
+            var builder = new DbfBuilder();
+            builder.AddField("A", 'C', 4);
+            byte[] bytes = builder.Build();
+            bytes[4] = 0xFF;
+            bytes[5] = 0xFF;
+            bytes[6] = 0xFF;
+            bytes[7] = 0xFF;
+
+            using DbfTable table = DbfTable.Open(new MemoryStream(bytes));
+
+            Assert.Equal(4294967295L, table.Schema.RecordCount);
+        }
+
+        [Fact]
         public void Reads_field_properties()
         {
             var builder = new DbfBuilder();
@@ -69,6 +87,34 @@ namespace VfpReader.Tests
             Assert.Equal(-1, table.Schema.FieldIndex("_NullFlags"));
             Assert.Equal(0, table.Schema.Fields[0].NullBit!.Value);
             Assert.Equal(1, table.Schema.Fields[1].NullBit!.Value);
+        }
+
+        [Fact]
+        public void Nullflags_detection_is_case_insensitive()
+        {
+            // The hidden field is recognised whatever its capitalisation; only the exact spelling
+            // is hidden today, so an Ordinal comparison would expose this field.
+            var builder = new DbfBuilder();
+            builder.AddField("A", 'C', 5, nullable: true);
+            builder.AddField("_nullflags", '0', 1, binary: true, system: true);
+
+            using DbfTable table = Open(builder);
+
+            Assert.Equal(1, table.Schema.FieldCount);
+            Assert.Equal(-1, table.Schema.FieldIndex("_NullFlags"));
+            Assert.Equal(0, table.Schema.Fields[0].NullBit!.Value);
+        }
+
+        [Fact]
+        public void Nullflags_only_table_throws()
+        {
+            // The post-hide count, not the raw descriptor count, is what must be non-empty.
+            var builder = new DbfBuilder();
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            DbfFormatException ex = Assert.Throws<DbfFormatException>(() => Open(builder));
+
+            Assert.Contains("no fields", ex.Message);
         }
 
         [Fact]
@@ -121,6 +167,34 @@ namespace VfpReader.Tests
         {
             var builder = new DbfBuilder { Version = 0x83 };
             builder.AddField("NAME", 'C', 10);
+
+            using DbfTable table = Open(builder);
+
+            Assert.True(table.Schema.HasMemo);
+        }
+
+        [Fact]
+        public void Memo_version_fb_sets_has_memo()
+        {
+            // 0xFB is the FoxBASE+/dBASE IV with memo spelling; it has no memo field in this
+            // table, so the version alone must set HasMemo.
+            var builder = new DbfBuilder { Version = 0xFB };
+            builder.AddField("NAME", 'C', 10);
+
+            using DbfTable table = Open(builder);
+
+            Assert.True(table.Schema.HasMemo);
+        }
+
+        [Theory]
+        [InlineData('G')]
+        [InlineData('P')]
+        [InlineData('W')]
+        public void Binary_memo_types_set_has_memo(char type)
+        {
+            // General/Picture/Blob fields live in the memo file even on a non-memo version.
+            var builder = new DbfBuilder { Version = 0x03 };
+            builder.AddField("DATA", type, 10);
 
             using DbfTable table = Open(builder);
 
@@ -254,6 +328,33 @@ namespace VfpReader.Tests
         }
 
         [Fact]
+        public void Binary_field_is_not_autoincrement()
+        {
+            // 0x04 alone marks raw bytes; only 0x04 | 0x08 marks an autoincrementing field, so a
+            // binary field must not report IsAutoIncrement.
+            var builder = new DbfBuilder();
+            builder.AddField("DATA", 'C', 10, binary: true);
+
+            using DbfTable table = Open(builder);
+
+            Assert.True(table.Schema.Fields[0].IsBinary);
+            Assert.False(table.Schema.Fields[0].IsAutoIncrement);
+            Assert.Equal(0u, table.Schema.Fields[0].AutoIncrementNext);
+        }
+
+        [Fact]
+        public void Field_lookup_rejects_null()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("A", 'C', 4);
+
+            using DbfTable table = Open(builder);
+
+            Assert.Throws<ArgumentNullException>(() => table.Schema.FieldIndex(null!));
+            Assert.Throws<ArgumentNullException>(() => table.Schema.FindField(null!));
+        }
+
+        [Fact]
         public void Field_lookup_is_case_insensitive()
         {
             var builder = new DbfBuilder();
@@ -327,6 +428,43 @@ namespace VfpReader.Tests
         public void File_shorter_than_a_header_throws()
         {
             Assert.Throws<DbfFormatException>(() => DbfTable.Open(new MemoryStream(new byte[10])));
+        }
+
+        [Fact]
+        public void Open_rejects_null_and_unreadable_inputs()
+        {
+            Assert.Throws<ArgumentNullException>(() => DbfTable.Open((string)null!));
+            Assert.Throws<ArgumentNullException>(() => DbfTable.Open((Stream)null!));
+
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 10);
+            var stream = new MemoryStream(builder.Build());
+            stream.Dispose();
+
+            Assert.Throws<ArgumentException>(() => DbfTable.Open(stream));
+        }
+
+        [Fact]
+        public void Bad_file_opened_by_path_reports_its_path()
+        {
+            string path = Path.Combine(
+                Path.GetTempPath(),
+                "vfp-reader-bad-" + Guid.NewGuid().ToString("N") + ".dbf");
+            File.WriteAllBytes(path, new byte[10]);
+            try
+            {
+                DbfFormatException ex = Assert.Throws<DbfFormatException>(() => DbfTable.Open(path));
+
+                Assert.Equal(path, ex.Path);
+                Assert.Contains(path, ex.Message);
+            }
+            finally
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
         }
     }
 }
