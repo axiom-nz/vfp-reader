@@ -107,42 +107,39 @@ using var table = VfpTable.Open("archive.dbf", new VfpReadOptions
 
 ## Examples
 
-### Dump a table to CSV
+### Stream a table to JSON
 
 ```csharp
 using System;
-using System.Globalization;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
+using System.Text.Json;
 using VfpReader;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-using var table = VfpTable.Open(args[0]);
-using var writer = new StreamWriter("out.csv", false, new UTF8Encoding(false));
+using var table = VfpTable.Open("customers.dbf");
+using var json = File.Create("customers.json");
+using var writer = new Utf8JsonWriter(json, new JsonWriterOptions { Indented = true });
 
-string[] columns = table.Schema.Fields.Select(f => f.Name).ToArray();
-writer.WriteLine(string.Join(",", columns.Select(Escape)));
-
-long written = 0;
+writer.WriteStartArray();
 foreach (VfpRow row in table.ReadRows())
 {
-    writer.WriteLine(string.Join(",", columns.Select(name => Escape(row[name]))));
-    written++;
+    var record = new Dictionary<string, object?>();
+    foreach (VfpField field in table.Schema.Fields)
+        record[field.Name] = row[field.Name];
+
+    JsonSerializer.Serialize(writer, record);
 }
+writer.WriteEndArray();
 
-Console.WriteLine($"{written} rows written");
-
-static string Escape(object? value) => value switch
-{
-    null => string.Empty,
-    byte[] bytes => Convert.ToBase64String(bytes),
-    DateTime when => when.ToString("o", CultureInfo.InvariantCulture),
-    string text => "\"" + text.Replace("\"", "\"\"") + "\"",
-    _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
-};
+Console.WriteLine("wrote customers.json");
 ```
+
+`Utf8JsonWriter` keeps the read streaming and constant-memory, and `System.Text.Json` picks the
+right JSON shape from the runtime value: `decimal` / `double` / `int` become numbers, `bool` a
+boolean, `DateTime` an ISO 8601 string, and `byte[]` a base64 string.
 
 ### Inspect deleted records and read memo columns
 
@@ -182,143 +179,6 @@ using var dbf = File.OpenRead("data.dbf");
 using var memo = File.OpenRead("data.fpt");
 using var table = VfpTable.Open(dbf, memo); // the streams stay open; the caller owns them
 ```
-
-## API reference
-
-### `VfpTable`
-
-```csharp
-public sealed class VfpTable : IDisposable
-{
-    public static VfpTable Open(string path, VfpReadOptions? options = null);
-    public static VfpTable Open(Stream dbf, Stream? memo = null, VfpReadOptions? options = null);
-    public VfpSchema Schema { get; }
-    public IEnumerable<VfpRow> ReadRows();
-    public void Dispose();
-}
-```
-
-- `Open(string, …)` opens the file read-only, shared for reading, and keeps it open until
-  `Dispose`. Memo discovery happens here.
-- `Open(Stream, Stream?, …)` reads caller-owned streams and leaves them open.
-- The header is parsed and validated on open; a structurally broken table throws
-  `VfpFormatException` (with `Path` and, where known, `Offset`).
-- `ReadRows()` returns a lazy, forward-only sequence. On a seekable stream a new enumeration
-  restarts at the first record; a non-seekable stream can be enumerated once (a second
-  enumeration throws `InvalidOperationException`).
-- Deleted records are skipped unless `IncludeDeleted` is set. `RecordNumber` keeps the record's
-  position in the file, so a filtered stream is not necessarily consecutive.
-- A table is not thread-safe. Enumerate one sequence at a time.
-- `Schema` is available before any record is read and needs no records.
-
-### `VfpReadOptions`
-
-Described in [Reading options](#reading-options).
-
-### `VfpSchema`
-
-What the header says about a table. All members are available as soon as the table is opened.
-
-| Member | Type | Notes |
-| --- | --- | --- |
-| `Version` | `byte` | The raw version byte. |
-| `RecordCount` | `long` | The record count claimed by the header. |
-| `HeaderLength` | `int` | Bytes before the first record. |
-| `RecordLength` | `int` | Bytes per record, including the deletion flag. |
-| `LastUpdate` | `DateTime?` | Header bytes 1–3, or `null` when they are not a date. |
-| `CodePage` | `CodePage` | The effective page: the language driver or the caller's override. |
-| `DatabasePath` | `string` | Visual FoxPro `.dbc` backlink; empty for a free table. |
-| `HasIndex` | `bool` | Whether a compound index sits beside the table. |
-| `HasMemo` | `bool` | Whether the table needs a memo file. |
-| `IsDatabase` | `bool` | Whether the table belongs to a database container. |
-| `Fields` | `IReadOnlyList<VfpField>` | Columns in file order; the hidden `_NullFlags` is excluded. |
-| `FieldCount` | `int` | Number of visible columns. |
-| `FieldIndex(string name)` | `int` | Case-insensitive index, or `-1`. |
-| `FindField(string name)` | `VfpField?` | Case-insensitive lookup, or `null`. |
-
-### `VfpField`
-
-One column.
-
-| Member | Type | Notes |
-| --- | --- | --- |
-| `Name` | `string` | Decoded with the table code page and trimmed. |
-| `Type` | `VfpFieldType` | Parsed from the descriptor's type character. |
-| `Length` | `byte` | Raw length byte. |
-| `Decimals` | `byte` | Raw decimals byte. |
-| `IsNullable` | `bool` | Whether the field accepts `NULL`. |
-| `IsSystem` | `bool` | Whether the field belongs to the table rather than the program. |
-| `IsBinary` | `bool` | Whether the field holds raw bytes rather than code-page text. |
-| `IsAutoIncrement` | `bool` | Whether the field fills itself in as records are added. |
-| `AutoIncrementNext` | `uint` | Value the next inserted record receives, when autoincrementing. |
-| `AutoIncrementStep` | `byte` | Increment per inserted record, when autoincrementing. |
-
-### `VfpRow`
-
-One record, decoded from the fixed-width record area. A row owns its bytes, so it stays valid
-after the reader advances or the table is disposed. Values are decoded on demand, so an unused
-column is never decoded.
-
-| Member | Type | Notes |
-| --- | --- | --- |
-| `RecordNumber` | `long` | 1-based position in the file. |
-| `IsDeleted` | `bool` | Whether the record's deletion flag is `*`. |
-| `FieldCount` | `int` | Same as `VfpSchema.FieldCount`. |
-| `this[int index]` | `object?` | Value by ordinal. |
-| `this[string name]` | `object?` | Value by name, case-insensitive. |
-
-`this[int]` throws `ArgumentOutOfRangeException` for an ordinal outside the row; `this[string]`
-throws `KeyNotFoundException` when no field has that name.
-
-### `VfpFieldType`
-
-The type character stored in a field descriptor. The numeric value of each member is the ASCII
-character.
-
-| Member | Char | Meaning |
-| --- | --- | --- |
-| `Character` | `C` | Character text, padded with spaces. |
-| `Numeric` | `N` | Numeric, stored right-aligned as ASCII. |
-| `Float` | `F` | Floating point, stored right-aligned as ASCII. |
-| `Logical` | `L` | Logical: `T`/`F`/`Y`/`N`, or `?` for unknown. |
-| `Date` | `D` | Date, eight ASCII digits `YYYYMMDD`. |
-| `DateTime` | `T` | Date-time: Julian day plus milliseconds. |
-| `DateTimeAt` | `@` | FoxPro 2.x spelling of `DateTime`. |
-| `Memo` | `M` | Memo text in the `.fpt` / `.dbt` file. |
-| `General` | `G` | General (OLE) binary in the memo file. |
-| `Picture` | `P` | Picture binary in the memo file. |
-| `Blob` | `W` | Blob in the memo file. |
-| `Currency` | `Y` | Currency: an eight-byte integer of ten-thousandths. |
-| `Integer` | `I` | Four-byte little-endian integer. |
-| `Double` | `B` | Eight-byte little-endian IEEE double (Visual FoxPro). |
-| `DoubleO` | `O` | Eight-byte little-endian IEEE double (dBASE). |
-| `AutoIncrement` | `+` | Four-byte little-endian autoincrementing integer. |
-| `Varchar` | `V` | Visual FoxPro 9 variable-length character. |
-| `Varbinary` | `Q` | Visual FoxPro 9 variable-length binary. |
-| `Unknown` | | A type this reader does not know; raw bytes are returned. |
-| `NullFlags` | `0` | The hidden null-flags field; never listed in a schema. |
-
-### `CodePage`
-
-A code page a table can record in its language-driver byte. The numeric values are Windows code
-page identifiers, the same numbers `Encoding.GetEncoding(int)` accepts. `VfpSchema.CodePage`
-reports the effective page, including a caller override.
-
-| Group | Members |
-| --- | --- |
-| IBM PC (OEM) | `Ibm437`, `Ibm850`, `Ibm852`, `Ibm857`, `Ibm860`, `Ibm861`, `Ibm863`, `Ibm865`, `Ibm866`, `Ibm737` |
-| Windows ANSI | `Windows1250`–`Windows1257`, `Windows874` |
-| East Asian | `ShiftJis`, `Gbk`, `EucKr`, `Big5` |
-| Macintosh | `MacRoman`, `MacGreek`, `MacCyrillic`, `MacCentralEurope` |
-| UTF-8 | `Utf8` (never recorded by a driver; a named value for an `Encoding` override) |
-
-The set is not exhaustive. A caller-forced encoding whose page has no member is still reported
-as its numeric code-page value.
-
-### `VfpFormatException`
-
-Thrown for every structural problem found while reading. `Path` names the file when known and
-`Offset` gives the byte offset of the problem when known.
 
 ## Value mapping
 
