@@ -188,6 +188,72 @@ namespace VfpReader.Tests
         }
 
         [Fact]
+        public void April_31_reads_as_null()
+        {
+            // Month 4 and day 31 both pass the coarse 1..12 / 1..31 range checks, so only the
+            // DaysInMonth guard rejects this date; without it new DateTime would throw.
+            var builder = new DbfBuilder { Year = 124, Month = 4, Day = 31 };
+            builder.AddField("NAME", 'C', 10);
+
+            using DbfTable table = Open(builder);
+
+            Assert.Null(table.Schema.LastUpdate);
+        }
+
+        [Fact]
+        public void Unterminated_descriptors_throw()
+        {
+            // 32-byte header + one full 32-byte descriptor = 64 bytes, so the descriptor array
+            // reaches the declared header end with no room for the closing 0x0D terminator.
+            var bytes = new byte[64];
+            bytes[0] = 0x03;
+            bytes[8] = 64;
+            bytes[10] = 11;
+            bytes[32] = (byte)'A';
+            bytes[32 + 11] = (byte)'C';
+            bytes[32 + 16] = 10;
+
+            DbfFormatException ex = Assert.Throws<DbfFormatException>(
+                () => DbfTable.Open(new MemoryStream(bytes)));
+
+            Assert.Contains("not terminated", ex.Message);
+        }
+
+        [Fact]
+        public void Header_status_flags_are_read()
+        {
+            // Version 0x30 has no memo and the only field is character, so HasMemo can only come
+            // from the header status byte.
+            var builder = new DbfBuilder
+            {
+                Version = 0x30,
+                HasIndexFlag = true,
+                HasMemoFlag = true,
+                IsDatabaseFlag = true,
+            };
+            builder.AddField("NAME", 'C', 10);
+
+            using DbfTable table = Open(builder);
+
+            Assert.True(table.Schema.HasIndex);
+            Assert.True(table.Schema.HasMemo);
+            Assert.True(table.Schema.IsDatabase);
+        }
+
+        [Fact]
+        public void Visible_field_system_and_binary_flags_are_read()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("DATA", 'C', 10, system: true, binary: true);
+
+            using DbfTable table = Open(builder);
+
+            DbfField field = table.Schema.Fields[0];
+            Assert.True(field.IsSystem);
+            Assert.True(field.IsBinary);
+        }
+
+        [Fact]
         public void Field_lookup_is_case_insensitive()
         {
             var builder = new DbfBuilder();
