@@ -57,11 +57,15 @@ tools/vfp-reader.Dump/  console schema / CSV dump for real-data checks
 .loop/decisions/*.md        # per-iteration decision text (full detail)
 .loop/EVIDENCE.md           # compact index table of verifications (supervisor-owned)
 .loop/evidence/*.md         # raw gate output per verification (supervisor-owned)
+.loop/FIXTURE-TESTS.md      # brief summary of the golden-test design
+.loop/TEST-ANTI-PATTERNS.md # brief summary of the test review
+.loop/TEST-GAPS.md          # brief summary of the gap analysis
+.loop/reports/*.md          # full report text for the three files above
 ```
 
-`PROGRESS.md`, `DECISIONS.md` and `EVIDENCE.md` are deliberately kept small: one
-table row per step, with a 1–2 line summary and a link to the detail file. Open the
-detail file only when you need the full text.
+Every `.loop/` root document is deliberately kept small: a table or a short summary
+with a link to the detail file. Open the detail file only when you need the full
+text.
 
 ## Attribution
 
