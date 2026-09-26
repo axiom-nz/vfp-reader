@@ -32,7 +32,7 @@ namespace VfpReader.Tests
         [InlineData(0x58, 1252)]
         [InlineData(0x59, 1252)]
         [InlineData(0x04, 10000)]
-        [InlineData(0x98, 10000)]
+        [InlineData(0x98, 10006)]
         [InlineData(0x08, 865)]
         [InlineData(0x17, 865)]
         [InlineData(0x66, 865)]

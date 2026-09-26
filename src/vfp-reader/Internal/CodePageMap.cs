@@ -64,8 +64,11 @@ namespace VfpReader.Internal
 
                 // MacRoman
                 case 0x04:
-                case 0x98:
                     return 10000;
+
+                // MacGreek
+                case 0x98:
+                    return 10006;
 
                 // IBM865 - DOS Nordic
                 case 0x08:
