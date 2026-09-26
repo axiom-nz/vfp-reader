@@ -70,9 +70,9 @@ namespace VfpReader.Tests.Fixtures
             bytes[1] = Year;
             bytes[2] = Month;
             bytes[3] = Day;
-            WriteUInt32(bytes, 4, (uint)_records.Count);
-            WriteUInt16(bytes, 8, (ushort)headerLength);
-            WriteUInt16(bytes, 10, (ushort)recordLength);
+            ByteOrder.WriteUInt32LittleEndian(bytes, 4, (uint)_records.Count);
+            ByteOrder.WriteUInt16LittleEndian(bytes, 8, (ushort)headerLength);
+            ByteOrder.WriteUInt16LittleEndian(bytes, 10, (ushort)recordLength);
 
             byte flags = 0;
             if (HasIndexFlag)
@@ -101,7 +101,7 @@ namespace VfpReader.Tests.Fixtures
                 int nameLength = Math.Min(nameBytes.Length, 11);
                 Array.Copy(nameBytes, 0, bytes, position, nameLength);
                 bytes[position + 11] = (byte)field.Type;
-                WriteUInt32(bytes, position + 12, (uint)fieldOffset);
+                ByteOrder.WriteUInt32LittleEndian(bytes, position + 12, (uint)fieldOffset);
                 bytes[position + 16] = field.Length;
                 bytes[position + 17] = field.Decimals;
 
@@ -127,7 +127,7 @@ namespace VfpReader.Tests.Fixtures
                 }
 
                 bytes[position + 18] = fieldFlags;
-                WriteUInt32(bytes, position + 19, field.AutoIncrementNext);
+                ByteOrder.WriteUInt32LittleEndian(bytes, position + 19, field.AutoIncrementNext);
                 bytes[position + 23] = field.AutoIncrementStep;
 
                 fieldOffset += field.Length;
@@ -168,20 +168,6 @@ namespace VfpReader.Tests.Fixtures
             }
 
             return sum;
-        }
-
-        private static void WriteUInt16(byte[] buffer, int offset, ushort value)
-        {
-            buffer[offset] = (byte)(value & 0xFF);
-            buffer[offset + 1] = (byte)((value >> 8) & 0xFF);
-        }
-
-        private static void WriteUInt32(byte[] buffer, int offset, uint value)
-        {
-            buffer[offset] = (byte)(value & 0xFF);
-            buffer[offset + 1] = (byte)((value >> 8) & 0xFF);
-            buffer[offset + 2] = (byte)((value >> 16) & 0xFF);
-            buffer[offset + 3] = (byte)((value >> 24) & 0xFF);
         }
 
         private sealed class FieldSpec

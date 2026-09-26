@@ -19,7 +19,7 @@ namespace VfpReader.Tests
     {
         private static VfpTable Open(byte[] dbf, byte[]? memo)
         {
-            return VfpTable.Open(new MemoryStream(dbf), memo is null ? null : new MemoryStream(memo));
+            return TestTable.Open(dbf, memo);
         }
 
         // ---- dBASE III (.dbt, 0x83): 512-byte blocks, 0x1A-terminated, NUL-padded ----
@@ -31,7 +31,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x83, 'M', 10, AsciiPointer(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.IsType<string>(row["MEMO"]);
             Assert.Equal("hello world", row["MEMO"]);
@@ -46,7 +46,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x83, 'M', 10, AsciiPointer(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             string? value = (string?)row["MEMO"];
             Assert.NotNull(value);
@@ -63,7 +63,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x83, 'M', 10, Encoding.ASCII.GetBytes(pointer));
 
             using VfpTable table = Open(dbf, Dbase3Blocks(Text("unused")));
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -74,7 +74,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x83, 'M', 10, AsciiPointer(99));
 
             using VfpTable table = Open(dbf, Dbase3Blocks(Text("short")));
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -88,7 +88,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x8b, 'M', 10, AsciiPointer(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Equal("First memo\r\n", row["MEMO"]);
         }
@@ -99,7 +99,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x8b, 'M', 10, AsciiPointer(1));
 
             using VfpTable table = Open(dbf, new byte[] { 0xFF, 0xFF, 0x08, 0x00 });
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -116,7 +116,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x8b, 'M', 10, AsciiPointer(1));
 
             using VfpTable table = Open(dbf, memo.ToArray());
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Equal("abc", row["MEMO"]);
         }
@@ -128,7 +128,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x8b, 'M', 10, AsciiPointer(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -139,10 +139,10 @@ namespace VfpReader.Tests
         public void FoxPro_reads_text_with_a_binary_little_endian_pointer()
         {
             byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Text("Domestic Life\r\nWeddings\r\n") });
-            byte[] dbf = MemoTable(0x30, 'M', 4, LittleEndianPointer(1));
+            byte[] dbf = MemoTable(0x30, 'M', 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.IsType<string>(row["MEMO"]);
             Assert.Equal("Domestic Life\r\nWeddings\r\n", row["MEMO"]);
@@ -152,10 +152,10 @@ namespace VfpReader.Tests
         public void FoxPro_reads_a_non_default_block_size_from_the_header()
         {
             byte[] memo = Fpt(blockSize: 512, entries: new[] { FptEntry.Text("bigger blocks") });
-            byte[] dbf = MemoTable(0x30, 'M', 4, LittleEndianPointer(1));
+            byte[] dbf = MemoTable(0x30, 'M', 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Equal("bigger blocks", row["MEMO"]);
         }
@@ -165,10 +165,10 @@ namespace VfpReader.Tests
         {
             string text = new string('y', 200);
             byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Text(text) });
-            byte[] dbf = MemoTable(0x30, 'M', 4, LittleEndianPointer(1));
+            byte[] dbf = MemoTable(0x30, 'M', 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Equal(text, row["MEMO"]);
         }
@@ -177,10 +177,10 @@ namespace VfpReader.Tests
         public void FoxPro_zero_pointer_reads_as_null()
         {
             byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Text("unused") });
-            byte[] dbf = MemoTable(0x30, 'M', 4, LittleEndianPointer(0));
+            byte[] dbf = MemoTable(0x30, 'M', 4, ByteOrder.LittleEndianUInt32(0));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -189,10 +189,10 @@ namespace VfpReader.Tests
         public void FoxPro_non_text_block_reads_as_null()
         {
             byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Binary(new byte[] { 1, 2, 3 }) });
-            byte[] dbf = MemoTable(0x30, 'M', 4, LittleEndianPointer(1));
+            byte[] dbf = MemoTable(0x30, 'M', 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -201,10 +201,10 @@ namespace VfpReader.Tests
         public void FoxPro_zero_size_block_reads_as_null()
         {
             byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Empty() });
-            byte[] dbf = MemoTable(0x30, 'M', 4, LittleEndianPointer(1));
+            byte[] dbf = MemoTable(0x30, 'M', 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -212,10 +212,10 @@ namespace VfpReader.Tests
         [Fact]
         public void FoxPro_truncated_header_reads_as_null()
         {
-            byte[] dbf = MemoTable(0x30, 'M', 4, LittleEndianPointer(1));
+            byte[] dbf = MemoTable(0x30, 'M', 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, new byte[] { 0, 0, 2, 0xDA, 0, 0 });
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -230,10 +230,10 @@ namespace VfpReader.Tests
         {
             byte[] payload = { 0x00, 0x01, 0xFE, 0xFF };
             byte[] memo = Fpt(blockSize: 64, entries: new[] { FptEntry.Text(payload) });
-            byte[] dbf = MemoTable(0x30, type, 4, LittleEndianPointer(1));
+            byte[] dbf = MemoTable(0x30, type, 4, ByteOrder.LittleEndianUInt32(1));
 
             using VfpTable table = Open(dbf, memo);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.IsType<byte[]>(row["MEMO"]);
             Assert.Equal(payload, (byte[])row["MEMO"]!);
@@ -247,7 +247,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x83, 'M', 10, AsciiPointer(1));
 
             using VfpTable table = Open(dbf, null);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["MEMO"]);
         }
@@ -258,7 +258,7 @@ namespace VfpReader.Tests
             byte[] dbf = MemoTable(0x30, 'V', 4, new byte[] { 0, 0, 0, 0 });
 
             using VfpTable table = Open(dbf, null);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Throws<NotSupportedException>(() => row["MEMO"]);
         }
@@ -270,8 +270,8 @@ namespace VfpReader.Tests
             builder.AddField("NUM", 'N', 4);
             builder.AddRecord(false, Encoding.ASCII.GetBytes("  42"));
 
-            using VfpTable table = VfpTable.Open(new MemoryStream(builder.Build()), new MemoryStream(Dbase3Blocks(Text("x"))));
-            VfpRow row = Assert.Single(table.ReadRows());
+            using VfpTable table = TestTable.Open(builder.Build(), Dbase3Blocks(Text("x")));
+            VfpRow row = RowReader.Single(table);
 
             Assert.Equal(42m, row["NUM"]);
         }
@@ -280,23 +280,49 @@ namespace VfpReader.Tests
         public void Explicit_memo_path_is_used()
         {
             // The table's sibling .dbt is named after the table; MemoPath points elsewhere.
-            string directory = CreateTempDirectory();
-            try
+            using var directory = new TempDirectory();
+            string tablePath = directory.File("table.dbf");
+            File.WriteAllBytes(tablePath, MemoTable(0x83, 'M', 10, AsciiPointer(1)));
+
+            string memoPath = directory.File("renamed.dbt");
+            File.WriteAllBytes(memoPath, Dbase3Blocks(Text("from another file")));
+
+            using VfpTable table = VfpTable.Open(tablePath, new VfpReadOptions { MemoPath = memoPath });
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal("from another file", row["MEMO"]);
+        }
+
+        [Fact]
+        public void Sibling_memo_is_discovered_without_touching_the_disk()
+        {
+            // The file-system seam lets sibling discovery run against a fake: the table's
+            // base name resolves to a .dbt the fake reports as existing.
+            var storage = new FakeStorage();
+            storage.Files["/data/table.dbf"] = MemoTable(0x83, 'M', 10, AsciiPointer(1));
+            storage.Files["/data/table.dbt"] = Dbase3Blocks(Text("via the fake"));
+
+            using (StorageScope.Use(storage))
+            using (VfpTable table = VfpTable.Open("/data/table.dbf"))
             {
-                string tablePath = Path.Combine(directory, "table.dbf");
-                File.WriteAllBytes(tablePath, MemoTable(0x83, 'M', 10, AsciiPointer(1)));
+                VfpRow row = RowReader.Single(table);
 
-                string memoPath = Path.Combine(directory, "renamed.dbt");
-                File.WriteAllBytes(memoPath, Dbase3Blocks(Text("from another file")));
-
-                using VfpTable table = VfpTable.Open(tablePath, new VfpReadOptions { MemoPath = memoPath });
-                VfpRow row = Assert.Single(table.ReadRows());
-
-                Assert.Equal("from another file", row["MEMO"]);
+                Assert.Equal("via the fake", row["MEMO"]);
             }
-            finally
+        }
+
+        [Fact]
+        public void Missing_sibling_memo_reads_as_null_without_touching_the_disk()
+        {
+            var storage = new FakeStorage();
+            storage.Files["/data/table.dbf"] = MemoTable(0x83, 'M', 10, AsciiPointer(1));
+
+            using (StorageScope.Use(storage))
+            using (VfpTable table = VfpTable.Open("/data/table.dbf"))
             {
-                Directory.Delete(directory, recursive: true);
+                VfpRow row = RowReader.Single(table);
+
+                Assert.Null(row["MEMO"]);
             }
         }
 
@@ -307,7 +333,7 @@ namespace VfpReader.Tests
         {
             GoldenFixture fixture = GoldenManifest.Find("dbase_30");
             using VfpTable table = fixture.Open();
-            VfpRow row = table.ReadRows().First();
+            VfpRow row = RowReader.First(table);
 
             Assert.Equal("Domestic Life\r\nWeddings\r\n", row["CLASSES"]);
         }
@@ -317,7 +343,7 @@ namespace VfpReader.Tests
         {
             GoldenFixture fixture = GoldenManifest.Find("dbase_83");
             using VfpTable table = fixture.Open();
-            VfpRow row = table.ReadRows().First();
+            VfpRow row = RowReader.First(table);
 
             string? value = (string?)row["DESC"];
             Assert.NotNull(value);
@@ -330,7 +356,7 @@ namespace VfpReader.Tests
         {
             GoldenFixture fixture = GoldenManifest.Find("dbase_83_missing_memo");
             using VfpTable table = fixture.Open();
-            VfpRow row = table.ReadRows().First();
+            VfpRow row = RowReader.First(table);
 
             Assert.Null(row["DESC"]);
         }
@@ -351,10 +377,6 @@ namespace VfpReader.Tests
             return Encoding.ASCII.GetBytes(block.ToString(System.Globalization.CultureInfo.InvariantCulture).PadLeft(10));
         }
 
-        private static byte[] LittleEndianPointer(int block)
-        {
-            return new[] { (byte)block, (byte)(block >> 8), (byte)(block >> 16), (byte)(block >> 24) };
-        }
 
         private static byte[] Text(string text)
         {
@@ -386,7 +408,7 @@ namespace VfpReader.Tests
         {
             var bytes = new List<byte>(new byte[512]);
             bytes.AddRange(new byte[] { 0xFF, 0xFF, 0x08, 0x00 });
-            bytes.AddRange(BitConverter.GetBytes(length));
+            bytes.AddRange(ByteOrder.LittleEndianUInt32(length));
             bytes.AddRange(payload);
             bytes.AddRange(new byte[8]);
             return bytes.ToArray();
@@ -416,13 +438,6 @@ namespace VfpReader.Tests
             }
 
             return bytes.ToArray();
-        }
-
-        private static string CreateTempDirectory()
-        {
-            string path = Path.Combine(Path.GetTempPath(), "vfp-memo-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(path);
-            return path;
         }
 
         /// <summary>One FPT block: big-endian type, big-endian length, then padded payload.</summary>
@@ -460,8 +475,8 @@ namespace VfpReader.Tests
             internal byte[] Build(int blockSize)
             {
                 var bytes = new List<byte>();
-                bytes.AddRange(BigEndian(_type));
-                bytes.AddRange(BigEndian((uint)_payload.Length));
+                bytes.AddRange(ByteOrder.BigEndianUInt32(_type));
+                bytes.AddRange(ByteOrder.BigEndianUInt32((uint)_payload.Length));
                 bytes.AddRange(_payload);
                 while (bytes.Count % blockSize != 0)
                 {
@@ -471,16 +486,6 @@ namespace VfpReader.Tests
                 return bytes.ToArray();
             }
 
-            private static byte[] BigEndian(uint value)
-            {
-                return new[]
-                {
-                    (byte)(value >> 24),
-                    (byte)(value >> 16),
-                    (byte)(value >> 8),
-                    (byte)value,
-                };
-            }
         }
     }
 }

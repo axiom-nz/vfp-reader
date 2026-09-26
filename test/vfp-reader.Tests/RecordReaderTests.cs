@@ -12,7 +12,7 @@ namespace VfpReader.Tests
     {
         private static VfpTable Open(DbfBuilder builder, VfpReadOptions? options = null)
         {
-            return VfpTable.Open(new MemoryStream(builder.Build()), options: options);
+            return TestTable.Open(builder, options);
         }
 
         [Fact]
@@ -37,11 +37,11 @@ namespace VfpReader.Tests
             payload.AddRange(Encoding.ASCII.GetBytes("hello"));
             payload.AddRange(Encoding.ASCII.GetBytes(" 12.34"));
             payload.AddRange(Encoding.ASCII.GetBytes("  3.50"));
-            payload.AddRange(Int32(42));
-            payload.AddRange(Int32(7));
-            payload.AddRange(Int64(180000));          // 18.0000
-            payload.AddRange(Bits(BitConverter.DoubleToInt64Bits(1.5)));
-            payload.AddRange(Bits(BitConverter.DoubleToInt64Bits(-2.25)));
+            payload.AddRange(ByteOrder.LittleEndianInt32(42));
+            payload.AddRange(ByteOrder.LittleEndianInt32(7));
+            payload.AddRange(ByteOrder.LittleEndianInt64(180000));          // 18.0000
+            payload.AddRange(ByteOrder.LittleEndianInt64(BitConverter.DoubleToInt64Bits(1.5)));
+            payload.AddRange(ByteOrder.LittleEndianInt64(BitConverter.DoubleToInt64Bits(-2.25)));
             payload.Add((byte)'T');
             payload.AddRange(Encoding.ASCII.GetBytes("20000101"));
             payload.AddRange(DateParts(2451545, 0));
@@ -51,7 +51,7 @@ namespace VfpReader.Tests
             builder.AddRecord(false, payload.ToArray());
 
             using VfpTable table = Open(builder);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.IsType<string>(row["CH"]);
             Assert.Equal("hello", row["CH"]);
@@ -97,7 +97,7 @@ namespace VfpReader.Tests
             builder.AddRecord(false, payload);
 
             using VfpTable table = Open(builder);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Null(row["NUM"]);
             Assert.Null(row["FLT"]);
@@ -116,7 +116,7 @@ namespace VfpReader.Tests
             builder.AddRecord(false, payload.ToArray());
 
             using VfpTable table = Open(builder);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Equal(new DateTime(2000, 1, 1), row["TS"]);
         }
@@ -131,7 +131,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder);
 
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
             Assert.Equal("live", row["NAME"]);
             Assert.False(row.IsDeleted);
         }
@@ -163,7 +163,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder);
 
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
             Assert.Equal(2L, row.RecordNumber);
         }
 
@@ -176,7 +176,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder);
 
-            Assert.Equal("ab", Assert.Single(table.ReadRows())["NAME"]);
+            Assert.Equal("ab", RowReader.Single(table)["NAME"]);
         }
 
         [Fact]
@@ -188,7 +188,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder, new VfpReadOptions { TrimCharacterFields = false });
 
-            Assert.Equal("ab \0\0\0", Assert.Single(table.ReadRows())["NAME"]);
+            Assert.Equal("ab \0\0\0", RowReader.Single(table)["NAME"]);
         }
 
         [Fact]
@@ -200,7 +200,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder);
 
-            Assert.Equal("\u00E9", Assert.Single(table.ReadRows())["NAME"]);
+            Assert.Equal("\u00E9", RowReader.Single(table)["NAME"]);
         }
 
         [Fact]
@@ -212,7 +212,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder);
 
-            Assert.Equal(new byte[] { 0x00, 0xFF, 0x41 }, (byte[])Assert.Single(table.ReadRows())["BLOB"]!);
+            Assert.Equal(new byte[] { 0x00, 0xFF, 0x41 }, (byte[])RowReader.Single(table)["BLOB"]!);
         }
 
         [Fact]
@@ -224,7 +224,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder);
 
-            Assert.Equal(new byte[] { 9, 8, 7 }, (byte[])Assert.Single(table.ReadRows())["WEIRD"]!);
+            Assert.Equal(new byte[] { 9, 8, 7 }, (byte[])RowReader.Single(table)["WEIRD"]!);
         }
 
         [Fact]
@@ -235,7 +235,7 @@ namespace VfpReader.Tests
             builder.AddRecord(false, new byte[10]);
 
             using VfpTable table = Open(builder);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             // Phase 3: a memo column is readable; with no memo stream it is empty (D13).
             Assert.Null(row["NOTES"]);
@@ -249,7 +249,7 @@ namespace VfpReader.Tests
             builder.AddRecord(false, new byte[10]);
 
             using VfpTable table = Open(builder);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Throws<NotSupportedException>(() => row[0]);
         }
@@ -294,7 +294,7 @@ namespace VfpReader.Tests
             using var stream = new NonSeekableStream(builder.Build());
             using VfpTable table = VfpTable.Open(stream);
 
-            Assert.Equal("live", Assert.Single(table.ReadRows())["NAME"]);
+            Assert.Equal("live", RowReader.Single(table)["NAME"]);
             Assert.Throws<InvalidOperationException>(() => table.ReadRows().ToList());
         }
 
@@ -307,7 +307,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder);
 
-            Assert.Equal("live", Assert.Single(table.ReadRows())["name"]);
+            Assert.Equal("live", RowReader.Single(table)["name"]);
         }
 
         [Fact]
@@ -318,7 +318,7 @@ namespace VfpReader.Tests
             builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
 
             using VfpTable table = Open(builder);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Throws<ArgumentOutOfRangeException>(() => row[-1]);
             Assert.Throws<ArgumentOutOfRangeException>(() => row[row.FieldCount]);
@@ -332,49 +332,16 @@ namespace VfpReader.Tests
             builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
 
             using VfpTable table = Open(builder);
-            VfpRow row = Assert.Single(table.ReadRows());
+            VfpRow row = RowReader.Single(table);
 
             Assert.Throws<KeyNotFoundException>(() => row["MISSING"]);
-        }
-
-        private static byte[] Int32(int value)
-        {
-            uint bits = (uint)value;
-            return new[]
-            {
-                (byte)bits,
-                (byte)(bits >> 8),
-                (byte)(bits >> 16),
-                (byte)(bits >> 24),
-            };
-        }
-
-        private static byte[] Bits(long bits)
-        {
-            ulong value = (ulong)bits;
-            return new[]
-            {
-                (byte)value,
-                (byte)(value >> 8),
-                (byte)(value >> 16),
-                (byte)(value >> 24),
-                (byte)(value >> 32),
-                (byte)(value >> 40),
-                (byte)(value >> 48),
-                (byte)(value >> 56),
-            };
-        }
-
-        private static byte[] Int64(long value)
-        {
-            return Bits(value);
         }
 
         private static byte[] DateParts(int julianDay, int milliseconds)
         {
             var bytes = new List<byte>();
-            bytes.AddRange(Int32(julianDay));
-            bytes.AddRange(Int32(milliseconds));
+            bytes.AddRange(ByteOrder.LittleEndianInt32(julianDay));
+            bytes.AddRange(ByteOrder.LittleEndianInt32(milliseconds));
             return bytes.ToArray();
         }
 

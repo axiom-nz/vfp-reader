@@ -10,7 +10,7 @@ namespace VfpReader.Tests
     {
         private static VfpTable Open(DbfBuilder builder)
         {
-            return VfpTable.Open(new MemoryStream(builder.Build()));
+            return TestTable.Open(builder);
         }
 
         [Fact]
@@ -447,24 +447,11 @@ namespace VfpReader.Tests
         [Fact]
         public void Bad_file_opened_by_path_reports_its_path()
         {
-            string path = Path.Combine(
-                Path.GetTempPath(),
-                "vfp-reader-bad-" + Guid.NewGuid().ToString("N") + ".dbf");
-            File.WriteAllBytes(path, new byte[10]);
-            try
-            {
-                VfpFormatException ex = Assert.Throws<VfpFormatException>(() => VfpTable.Open(path));
+            using var file = new TempFile(new byte[10]);
+            VfpFormatException ex = Assert.Throws<VfpFormatException>(() => VfpTable.Open(file.Path));
 
-                Assert.Equal(path, ex.Path);
-                Assert.Contains(path, ex.Message);
-            }
-            finally
-            {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-            }
+            Assert.Equal(file.Path, ex.Path);
+            Assert.Contains(file.Path, ex.Message);
         }
     }
 }
