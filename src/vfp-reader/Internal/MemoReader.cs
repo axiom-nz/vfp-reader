@@ -136,16 +136,21 @@ namespace VfpReader.Internal
                         break;
                     }
 
+                    // dBASE III terminates the text with 0x1A and pads with NULs. The reference
+                    // strips both and then stops as soon as the *stripped* block is shorter than
+                    // a full block, so the terminator (or a short final read) ends the content.
+                    int kept = 0;
                     for (int i = 0; i < read; i++)
                     {
                         byte value = buffer[i];
                         if (value != 0x00 && value != 0x1A)
                         {
                             content.WriteByte(value);
+                            kept++;
                         }
                     }
 
-                    if (read < buffer.Length)
+                    if (kept < buffer.Length)
                     {
                         break;
                     }
@@ -167,7 +172,7 @@ namespace VfpReader.Internal
                 return null;
             }
 
-            byte[] header = ReadBlockHeader();
+            byte[]? header = ReadBlockHeader();
             if (header is null)
             {
                 return null;
@@ -193,7 +198,7 @@ namespace VfpReader.Internal
                 return null;
             }
 
-            byte[] header = ReadBlockHeader();
+            byte[]? header = ReadBlockHeader();
             if (header is null)
             {
                 return null;
