@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using VfpReader.Tests.Fixtures;
 using Xunit.Sdk;
 
@@ -53,11 +54,126 @@ namespace VfpReader.Tests.Golden
             }
         }
 
-        /// <summary>Phase 3 owns memo values; the seam stays closed for now.</summary>
+        /// <summary>
+        /// Compares one <c>.yml</c> golden record against the table's record of the same number,
+        /// field by field. The YAML scalars are the reference implementation's Ruby text form
+        /// (<c>87</c>, <c>0.0</c>, <c>true</c>, the memo text), so numeric and logical cells are
+        /// compared by parsed value and text cells by string equality; only <c>M</c> reaches the
+        /// memo file.
+        /// </summary>
         public static void CompareRecord(GoldenFixture fixture, string recordPath, VfpTable table)
         {
-            throw new NotSupportedException(
-                "Phase 3: memo values are not available yet, so '" + recordPath + "' cannot be compared.");
+            GoldenRecord record = GoldenRecord.Read(recordPath);
+            IReadOnlyList<VfpField> fields = table.Schema.Fields;
+            if (record.Values.Count != fields.Count)
+            {
+                throw new XunitException(
+                    fixture.Name + ": the golden " + recordPath + " has " + record.Values.Count
+                    + " values but the schema has " + fields.Count + " fields");
+            }
+
+            long recordNumber = RecordNumberOf(recordPath);
+            VfpRow? row = null;
+            foreach (VfpRow candidate in table.ReadRows())
+            {
+                if (candidate.RecordNumber == recordNumber)
+                {
+                    row = candidate;
+                    break;
+                }
+            }
+
+            if (row is null)
+            {
+                throw new XunitException(
+                    fixture.Name + ": record " + recordNumber + " is missing from the reader's stream");
+            }
+
+            for (int i = 0; i < fields.Count; i++)
+            {
+                string expected = record.Values[i];
+                object? actual = row[i];
+                if (!Matches(fields[i], expected, actual))
+                {
+                    throw new XunitException(
+                        fixture.Name + ": record " + recordNumber + " field " + fields[i].Name
+                        + " expected <" + expected + "> but was <" + Describe(actual) + ">");
+                }
+            }
+        }
+
+        /// <summary>
+        /// The 1-based record number a golden file pins. The file names use the reference
+        /// implementation's zero-based record index, so <c>_record_0</c> is file record 1 and
+        /// <c>_record_9</c> is file record 10.
+        /// </summary>
+        private static long RecordNumberOf(string recordPath)
+        {
+            string name = Path.GetFileNameWithoutExtension(recordPath);
+            int marker = name.LastIndexOf("_record_", StringComparison.Ordinal);
+            if (marker >= 0
+                && long.TryParse(
+                    name.Substring(marker + "_record_".Length),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out long index))
+            {
+                return index + 1;
+            }
+
+            return 1;
+        }
+
+        private static bool Matches(VfpField field, string expected, object? actual)
+        {
+            switch (field.Type)
+            {
+                case VfpFieldType.Numeric:
+                case VfpFieldType.Currency:
+                    return actual is decimal numeric
+                        && numeric == GoldenRecord.AsDecimal(expected);
+
+                case VfpFieldType.Float:
+                case VfpFieldType.Double:
+                case VfpFieldType.DoubleO:
+                    return actual is double real
+                        && real == (double)GoldenRecord.AsDecimal(expected);
+
+                case VfpFieldType.Logical:
+                    return actual is bool flag && flag == GoldenRecord.AsBoolean(expected);
+
+                case VfpFieldType.Date:
+                    return actual is DateTime date
+                        && date == DateTime.Parse(expected, CultureInfo.InvariantCulture);
+
+                case VfpFieldType.DateTime:
+                case VfpFieldType.DateTimeAt:
+                    return actual is DateTime stamp
+                        && stamp == DateTime.Parse(expected, CultureInfo.InvariantCulture);
+
+                default:
+                    if (expected.Length == 0)
+                    {
+                        return actual is null || (actual is string empty && empty.Length == 0);
+                    }
+
+                    return actual is string text && string.Equals(text, expected, StringComparison.Ordinal);
+            }
+        }
+
+        private static string Describe(object? value)
+        {
+            if (value is null)
+            {
+                return string.Empty;
+            }
+
+            if (value is byte[] bytes)
+            {
+                return Convert.ToBase64String(bytes);
+            }
+
+            return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private static string Canonical(VfpField field, object? value)

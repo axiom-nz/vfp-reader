@@ -39,19 +39,19 @@ namespace VfpReader.Tests.Golden
             Assert.Equal(summary.RecordCount, count);
         }
 
-        [Fact(Skip = "Phase 3: memo reading is not implemented")]
+        [Fact]
         public void dbase_83_record_0_matches()
         {
             CompareRecord("dbase_83", "dbase_83_record_0.yml");
         }
 
-        [Fact(Skip = "Phase 3: memo reading is not implemented")]
+        [Fact]
         public void dbase_83_record_9_matches()
         {
             CompareRecord("dbase_83", "dbase_83_record_9.yml");
         }
 
-        [Fact(Skip = "Phase 3: memo reading is not implemented; absent memo must read as empty")]
+        [Fact]
         public void dbase_83_missing_memo_record_0_matches()
         {
             CompareRecord("dbase_83_missing_memo", "dbase_83_missing_memo_record_0.yml");
