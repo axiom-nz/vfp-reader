@@ -4,8 +4,9 @@ A read-only, streaming .NET library that reads the schema and rows of Visual Fox
 and dBASE III tables straight from disk. No OLE DB, no ODBC, no Visual FoxPro runtime, no 32-bit
 process.
 
-> **Status: Phase 1.** Header and field-descriptor parsing plus the schema are implemented.
-> Streaming records, memo files, null bits and the `DbDataReader` adapter are still to come.
+> **Status: Phase 2.** Header and field-descriptor parsing plus the schema are implemented, and
+> `VfpTable.ReadRows()` streams the fixed-width records of a table (all types except memo and
+> varlength). Memo files, null bits and the `DbDataReader` adapter are still to come.
 > See `.loop/PLAN.md` for the phase list.
 
 ## Scope
@@ -38,6 +39,15 @@ VfpSchema schema = table.Schema;
 foreach (VfpField field in schema.Fields)
     Console.WriteLine($"{field.Name} {field.Type} {field.Length},{field.Decimals} null={field.IsNullable}");
 Console.WriteLine($"code page {schema.CodePage}");   // e.g. CodePage.Ibm850
+
+foreach (VfpRow row in table.ReadRows())
+{
+    if (row.IsDeleted)
+        continue;
+    foreach (VfpField field in schema.Fields)
+        Console.Write(row[field.Name] + "\t");
+    Console.WriteLine();
+}
 ```
 
 ## Layout

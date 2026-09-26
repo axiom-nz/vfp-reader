@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -18,7 +19,9 @@ namespace VfpReader
         private readonly bool _ownsMemo;
         private readonly VfpReadOptions _options;
         private readonly VfpHeader _header;
+        private readonly string? _path;
         private bool _disposed;
+        private bool _recordsConsumed;
 
         private VfpTable(
             Stream dbf,
@@ -27,7 +30,8 @@ namespace VfpReader
             bool ownsMemo,
             VfpReadOptions options,
             VfpHeader header,
-            Encoding encoding)
+            Encoding encoding,
+            string? path)
         {
             _dbf = dbf;
             _memo = memo;
@@ -36,6 +40,7 @@ namespace VfpReader
             _options = options;
             _header = header;
             Encoding = encoding;
+            _path = path;
             Schema = BuildSchema(header);
         }
 
@@ -123,6 +128,61 @@ namespace VfpReader
             }
         }
 
+        /// <summary>
+        /// Streams the table's records, one decoded row at a time, without loading the table.
+        /// Deleted records are skipped unless <see cref="VfpReadOptions.IncludeDeleted"/> is set.
+        /// The reader is forward-only and not thread-safe: enumerate one sequence at a time. On a
+        /// seekable stream every call restarts at the first record; a non-seekable stream can be
+        /// read once (a second enumeration throws <see cref="InvalidOperationException"/>).
+        /// </summary>
+        public IEnumerable<VfpRow> ReadRows()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(VfpTable));
+            }
+
+            return ReadRowsCore();
+        }
+
+        private IEnumerable<VfpRow> ReadRowsCore()
+        {
+            VfpHeader header = _header;
+            if (_dbf.CanSeek)
+            {
+                _dbf.Position = header.HeaderLength;
+            }
+            else if (_recordsConsumed)
+            {
+                throw new InvalidOperationException(
+                    "This table's stream is not seekable, so its records can only be enumerated once.");
+            }
+            else
+            {
+                _recordsConsumed = true;
+            }
+
+            for (long number = 1; number <= header.RecordCount; number++)
+            {
+                var record = new byte[header.RecordLength];
+                ReadFully(
+                    _dbf,
+                    record,
+                    0,
+                    record.Length,
+                    _path,
+                    "record " + number.ToString(CultureInfo.InvariantCulture));
+
+                bool deleted = record[0] == (byte)'*';
+                if (deleted && !_options.IncludeDeleted)
+                {
+                    continue;
+                }
+
+                yield return new VfpRow(header, Encoding, record, number, _options.TrimCharacterFields);
+            }
+        }
+
         private static VfpTable OpenCore(
             Stream dbf,
             Stream? memo,
@@ -153,13 +213,13 @@ namespace VfpReader
             }
 
             VfpHeader header = HeaderParser.Parse(headerBytes, headerLength, encoding, codePage, path);
-            return new VfpTable(dbf, memo, ownsDbf, ownsMemo, options, header, encoding);
+            return new VfpTable(dbf, memo, ownsDbf, ownsMemo, options, header, encoding, path);
         }
 
         private static byte[] ReadHeader(Stream dbf, string? path)
         {
             var prefix = new byte[HeaderParser.HeaderSize];
-            ReadFully(dbf, prefix, 0, prefix.Length, path);
+            ReadFully(dbf, prefix, 0, prefix.Length, path, "the table header");
 
             int headerLength = prefix[8] | (prefix[9] << 8);
             if (headerLength < HeaderParser.HeaderSize + 1)
@@ -180,11 +240,11 @@ namespace VfpReader
 
             var header = new byte[headerLength];
             Buffer.BlockCopy(prefix, 0, header, 0, HeaderParser.HeaderSize);
-            ReadFully(dbf, header, HeaderParser.HeaderSize, headerLength - HeaderParser.HeaderSize, path);
+            ReadFully(dbf, header, HeaderParser.HeaderSize, headerLength - HeaderParser.HeaderSize, path, "the table header");
             return header;
         }
 
-        private static void ReadFully(Stream stream, byte[] buffer, int offset, int count, string? path)
+        private static void ReadFully(Stream stream, byte[] buffer, int offset, int count, string? path, string what)
         {
             int read = 0;
             while (read < count)
@@ -197,7 +257,7 @@ namespace VfpReader
                 catch (IOException ex)
                 {
                     throw new VfpFormatException(
-                        "failed while reading the table header",
+                        "failed while reading " + what,
                         path,
                         offset + read,
                         ex);
@@ -206,7 +266,7 @@ namespace VfpReader
                 if (n <= 0)
                 {
                     throw new VfpFormatException(
-                        "unexpected end of file while reading the table header",
+                        "unexpected end of file while reading " + what,
                         path,
                         offset + read);
                 }

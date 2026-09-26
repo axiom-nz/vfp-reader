@@ -19,10 +19,16 @@ namespace VfpReader
         /// </summary>
         public Encoding? Encoding { get; set; }
 
-        /// <summary>When true, deleted records are returned too (they carry <c>IsDeleted</c>).</summary>
+        /// <summary>
+        /// When true, deleted records are returned too; each carries <c>VfpRow.IsDeleted</c>. When
+        /// false (the default) <c>VfpTable.ReadRows()</c> skips them.
+        /// </summary>
         public bool IncludeDeleted { get; set; }
 
-        /// <summary>When true (the default), trailing spaces and NULs are trimmed from text.</summary>
+        /// <summary>
+        /// When true (the default), trailing spaces and NULs are trimmed from <c>Character</c>
+        /// values.
+        /// </summary>
         public bool TrimCharacterFields { get; set; } = true;
     }
 }
