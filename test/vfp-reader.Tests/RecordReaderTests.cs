@@ -394,6 +394,146 @@ namespace VfpReader.Tests
         }
 
         [Fact]
+        public void Multi_byte_nullflags_read_a_bit_in_the_second_byte()
+        {
+            // Nine nullable C fields use null bits 0..8. Bit 8 is the low bit of the second
+            // _NullFlags byte; setting it nulls only the ninth field.
+            var builder = new DbfBuilder { Version = 0x30 };
+            for (int i = 0; i < 9; i++)
+            {
+                builder.AddField("F" + i, 'C', 2, nullable: true);
+            }
+
+            builder.AddField("_NullFlags", '0', 2, binary: true, system: true);
+
+            var payload = new byte[(9 * 2) + 2];
+            for (int i = 0; i < 9; i++)
+            {
+                payload[i * 2] = (byte)('a' + i);
+                payload[(i * 2) + 1] = (byte)' ';
+            }
+
+            payload[19] = 0x01;  // _NullFlags byte 1, bit 0 = null bit 8 = F8
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            for (int i = 0; i < 8; i++)
+            {
+                Assert.Equal(((char)('a' + i)).ToString(), row["F" + i]);
+            }
+
+            Assert.Null(row["F8"]);
+        }
+
+        [Fact]
+        public void Non_nullable_field_ignores_a_set_nullflags_byte()
+        {
+            // Only B is nullable, so the sole bit belongs to B. Every bit set must still not
+            // null the non-nullable A: NullBit is only assigned to nullable fields.
+            var builder = new DbfBuilder { Version = 0x30 };
+            builder.AddField("A", 'C', 4);
+            builder.AddField("B", 'C', 4, nullable: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[9];
+            Array.Copy(Encoding.ASCII.GetBytes("abcd"), 0, payload, 0, 4);
+            Array.Copy(Encoding.ASCII.GetBytes("wxyz"), 0, payload, 4, 4);
+            payload[8] = 0xFF;  // every bit set
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal("abcd", row["A"]);
+            Assert.Null(row["B"]);
+        }
+
+        [Fact]
+        public void Varlength_clear_keeps_the_last_byte_when_trimming_is_off()
+        {
+            // With the bit clear the whole field is the value, so the last byte is data even
+            // when it is not padding. Trimming off makes a width - 1 truncation observable.
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("NAME", 'V', 5);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[6];
+            Array.Copy(Encoding.ASCII.GetBytes("abcdZ"), payload, 5);
+            payload[5] = 0x00;  // varlength bit clear
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder, new VfpReadOptions { TrimCharacterFields = false });
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal("abcdZ", row["NAME"]);
+        }
+
+        [Fact]
+        public void Nullable_varlength_field_reads_the_value_when_only_the_varlength_bit_is_set()
+        {
+            // V is nullable: bit 0 is the varlength bit, bit 1 the null bit. Setting bit 0 and
+            // clearing bit 1 is the documented "length in the last byte" case.
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("NAME", 'V', 6, nullable: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[7];
+            Array.Copy(Encoding.ASCII.GetBytes("hey"), payload, 3);
+            payload[5] = 3;  // NAME's last byte: the value length
+            payload[6] = 0x01;  // varlength bit set, null bit clear
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal("hey", row["NAME"]);
+        }
+
+        [Fact]
+        public void Nullable_varbinary_field_reads_the_value_when_only_the_varlength_bit_is_set()
+        {
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("DATA", 'Q', 5, nullable: true, binary: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[6];
+            payload[0] = 0xAA;
+            payload[1] = 0xBB;
+            payload[4] = 2;  // DATA's last byte: the value length
+            payload[5] = 0x01;  // varlength bit set, null bit clear
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal(new byte[] { 0xAA, 0xBB }, (byte[])row["DATA"]!);
+        }
+
+        [Fact]
+        public void Varchar_with_the_binary_flag_still_decodes_as_text()
+        {
+            // MSDN lists a "Varchar (binary)" type but restricts flag 0x04 to CHAR/MEMO; the real
+            // dbase_32 fixture has V + 0x04 holding ASCII. Pin the D47 behaviour here.
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("NAME", 'V', 6, binary: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[7];
+            Array.Copy(Encoding.ASCII.GetBytes("hey"), payload, 3);
+            payload[5] = 3;
+            payload[6] = 0x01;  // varlength bit set
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.IsType<string>(row["NAME"]);
+            Assert.Equal("hey", row["NAME"]);
+        }
+
+        [Fact]
         public void Empty_table_yields_no_rows()
         {
             var builder = new DbfBuilder();
