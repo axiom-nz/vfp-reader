@@ -1,11 +1,8 @@
-# Real tables, memos and index/container files are compared as bytes. Git must
-# not convert line endings in them, even on a checkout with core.autocrlf=true.
-# Everything else under test/fixtures (README, NOTICE, *_summary.txt, *.yml)
-# stays text so it diffs and reviews normally.
-test/fixtures/**/*.[Dd][Bb][Ff] binary
-test/fixtures/**/*.[Ff][Pp][Tt] binary
-test/fixtures/**/*.[Dd][Bb][Tt] binary
-test/fixtures/**/*.[Cc][Dd][Xx] binary
-test/fixtures/**/*.[Dd][Bb][Cc] binary
-test/fixtures/**/*.[Dd][Cc][Xx] binary
-test/fixtures/**/*.[Dd][Cc][Tt] binary
+# Everything under test/fixtures is data and is compared as bytes, even the
+# golden *_summary.txt, *.yml and *.csv files: Git must not convert line
+# endings in them, and they are not meant to be merged or diffed.
+test/fixtures/** binary
+
+# The human-readable docs are the only text files in the directory.
+test/fixtures/README.md text diff merge
+test/fixtures/NOTICE text diff merge
