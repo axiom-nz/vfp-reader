@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -16,6 +17,21 @@ namespace VfpReader.Internal
         private const byte FieldTerminator = 0x0D;
         private const int DbBacklinkLength = 263;
         private const string NullFlagsFieldName = "_NullFlags";
+
+        /// <summary>
+        /// The smallest possible header: the 32-byte prefix plus the single 0x0D terminator. A
+        /// declared length below this cannot describe a field, so both the stream-level reader and
+        /// this parser reject it with the same rule.
+        /// </summary>
+        internal const int MinimumHeaderLength = HeaderSize + 1;
+
+        internal static VfpFormatException HeaderTooSmall(int headerLength, string? path)
+        {
+            return new VfpFormatException(
+                string.Format(CultureInfo.InvariantCulture, "header length {0} is too small for any field", headerLength),
+                path,
+                8);
+        }
 
         internal static VfpHeader Parse(
             byte[] header,
@@ -41,19 +57,16 @@ namespace VfpReader.Internal
             }
 
             byte version = header[0];
-            long recordCount = ReadUInt32(header, 4);
-            int declaredHeaderLength = ReadUInt16(header, 8);
-            int recordLength = ReadUInt16(header, 10);
+            long recordCount = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(4));
+            int declaredHeaderLength = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(8));
+            int recordLength = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(10));
             bool hasIndex = (header[28] & 0x01) != 0;
             bool hasMemoFlag = (header[28] & 0x02) != 0;
             bool isDatabase = (header[28] & 0x04) != 0;
 
-            if (declaredHeaderLength < HeaderSize + 1)
+            if (declaredHeaderLength < MinimumHeaderLength)
             {
-                throw new VfpFormatException(
-                    string.Format(CultureInfo.InvariantCulture, "header length {0} is too small for any field", declaredHeaderLength),
-                    path,
-                    8);
+                throw HeaderTooSmall(declaredHeaderLength, path);
             }
 
             if (declaredHeaderLength != headerLength)
@@ -71,7 +84,7 @@ namespace VfpReader.Internal
 
             DateTime? lastUpdate = ParseLastUpdate(header);
 
-            List<RawField> raw = ParseFieldDescriptors(header, headerLength, encoding, path);
+            List<RawField> raw = ParseFieldDescriptors(header, headerLength, encoding, path, out int descriptorEnd);
             if (raw.Count == 0)
             {
                 throw new VfpFormatException("the table has no fields", path, HeaderSize);
@@ -129,12 +142,12 @@ namespace VfpReader.Internal
             AssignNullBits(fields);
 
             string databasePath = string.Empty;
-            if (VfpHeader.IsVisualFoxPro(version))
+            if (VfpVersion.IsVisualFoxPro(version))
             {
-                databasePath = ReadDatabaseBacklink(header, headerLength, encoding);
+                databasePath = ReadDatabaseBacklink(header, headerLength, descriptorEnd, encoding);
             }
 
-            bool hasMemo = hasMemoFlag || VfpHeader.VersionHasMemo(version) || VfpHeader.FieldsHaveMemo(fields.ToArray());
+            bool hasMemo = hasMemoFlag || VfpVersion.HasMemo(version) || VfpHeader.FieldsHaveMemo(fields.ToArray());
 
             return new VfpHeader(
                 version,
@@ -170,7 +183,12 @@ namespace VfpReader.Internal
             return new DateTime(year, month, day);
         }
 
-        private static List<RawField> ParseFieldDescriptors(byte[] header, int headerLength, Encoding encoding, string? path)
+        private static List<RawField> ParseFieldDescriptors(
+            byte[] header,
+            int headerLength,
+            Encoding encoding,
+            string? path,
+            out int terminator)
         {
             var fields = new List<RawField>();
             int position = HeaderSize;
@@ -205,6 +223,7 @@ namespace VfpReader.Internal
                     position);
             }
 
+            terminator = position;
             return fields;
         }
 
@@ -225,7 +244,7 @@ namespace VfpReader.Internal
             bool isSystem = (flags & 0x01) != 0;
             bool isBinary = (flags & 0x04) != 0;
             bool autoIncrement = (flags & 0x0C) == 0x0C;
-            uint autoIncrementNext = autoIncrement ? ReadUInt32(header, position + 19) : 0;
+            uint autoIncrementNext = autoIncrement ? BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(position + 19)) : 0;
             byte autoIncrementStep = autoIncrement ? Math.Max((byte)1, header[position + 23]) : (byte)0;
 
             return new RawField(
@@ -303,26 +322,8 @@ namespace VfpReader.Internal
             }
         }
 
-        private static string ReadDatabaseBacklink(byte[] header, int headerLength, Encoding encoding)
+        private static string ReadDatabaseBacklink(byte[] header, int headerLength, int terminator, Encoding encoding)
         {
-            int start = HeaderSize;
-            int terminator = -1;
-            while (start < headerLength)
-            {
-                if (header[start] == FieldTerminator)
-                {
-                    terminator = start;
-                    break;
-                }
-
-                start += FieldDescriptorLength;
-            }
-
-            if (terminator < 0)
-            {
-                return string.Empty;
-            }
-
             int backlinkStart = terminator + 1;
             int available = headerLength - backlinkStart;
             if (available <= 0)
@@ -333,19 +334,6 @@ namespace VfpReader.Internal
             int length = Math.Min(DbBacklinkLength, available);
             string path = encoding.GetString(header, backlinkStart, length);
             return path.TrimEnd('\0').Trim();
-        }
-
-        private static ushort ReadUInt16(byte[] buffer, int offset)
-        {
-            return (ushort)(buffer[offset] | (buffer[offset + 1] << 8));
-        }
-
-        private static uint ReadUInt32(byte[] buffer, int offset)
-        {
-            return (uint)(buffer[offset]
-                | (buffer[offset + 1] << 8)
-                | (buffer[offset + 2] << 16)
-                | (buffer[offset + 3] << 24));
         }
 
         private readonly struct RawField
@@ -396,9 +384,7 @@ namespace VfpReader.Internal
 
             internal int WidthForLayout(bool wideChar)
             {
-                return wideChar && Type == VfpFieldType.Character && Decimals > 0
-                    ? Length + Decimals * 256
-                    : Length;
+                return VfpField.WidthFor(Type, Length, Decimals, wideChar);
             }
 
             internal VfpField ToField(int offset, int width)

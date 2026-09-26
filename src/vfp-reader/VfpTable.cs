@@ -44,7 +44,7 @@ namespace VfpReader
             _header = header;
             Encoding = encoding;
             _path = path;
-            Schema = BuildSchema(header);
+            Schema = new VfpSchema(header);
         }
 
         /// <summary>The table's schema, known from the header alone.</summary>
@@ -84,7 +84,7 @@ namespace VfpReader
             }
 
             options ??= new VfpReadOptions();
-            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            Stream stream = Storage.Current.OpenRead(path);
             try
             {
                 return OpenCore(stream, null, ownsDbf: true, ownsMemo: false, options, path);
@@ -168,7 +168,7 @@ namespace VfpReader
             for (long number = 1; number <= header.RecordCount; number++)
             {
                 var record = new byte[header.RecordLength];
-                ReadFully(
+                StreamFill.ReadFully(
                     _dbf,
                     record,
                     0,
@@ -225,7 +225,7 @@ namespace VfpReader
                 string? memoPath = ResolveMemoPath(path, options);
                 if (memoPath is not null)
                 {
-                    Stream opened = new FileStream(memoPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    Stream opened = Storage.Current.OpenRead(memoPath);
                     try
                     {
                         MemoReader? ownedReader = MemoReader.ForVersion(opened, header.Version);
@@ -266,7 +266,7 @@ namespace VfpReader
             foreach (string extension in extensions)
             {
                 string candidate = Path.Combine(directory, baseName + extension);
-                if (File.Exists(candidate))
+                if (Storage.Current.FileExists(candidate))
                 {
                     return candidate;
                 }
@@ -278,15 +278,12 @@ namespace VfpReader
         private static byte[] ReadHeader(Stream dbf, string? path)
         {
             var prefix = new byte[HeaderParser.HeaderSize];
-            ReadFully(dbf, prefix, 0, prefix.Length, path, "the table header");
+            StreamFill.ReadFully(dbf, prefix, 0, prefix.Length, path, "the table header");
 
             int headerLength = prefix[8] | (prefix[9] << 8);
-            if (headerLength < HeaderParser.HeaderSize + 1)
+            if (headerLength < HeaderParser.MinimumHeaderLength)
             {
-                throw new VfpFormatException(
-                    string.Format(CultureInfo.InvariantCulture, "header length {0} is too small for any field", headerLength),
-                    path,
-                    8);
+                throw HeaderParser.HeaderTooSmall(headerLength, path);
             }
 
             if (dbf.CanSeek && headerLength - HeaderParser.HeaderSize > dbf.Length - dbf.Position)
@@ -299,39 +296,8 @@ namespace VfpReader
 
             var header = new byte[headerLength];
             Buffer.BlockCopy(prefix, 0, header, 0, HeaderParser.HeaderSize);
-            ReadFully(dbf, header, HeaderParser.HeaderSize, headerLength - HeaderParser.HeaderSize, path, "the table header");
+            StreamFill.ReadFully(dbf, header, HeaderParser.HeaderSize, headerLength - HeaderParser.HeaderSize, path, "the table header");
             return header;
-        }
-
-        private static void ReadFully(Stream stream, byte[] buffer, int offset, int count, string? path, string what)
-        {
-            int read = 0;
-            while (read < count)
-            {
-                int n;
-                try
-                {
-                    n = stream.Read(buffer, offset + read, count - read);
-                }
-                catch (IOException ex)
-                {
-                    throw new VfpFormatException(
-                        "failed while reading " + what,
-                        path,
-                        offset + read,
-                        ex);
-                }
-
-                if (n <= 0)
-                {
-                    throw new VfpFormatException(
-                        "unexpected end of file while reading " + what,
-                        path,
-                        offset + read);
-                }
-
-                read += n;
-            }
         }
 
         private static Encoding ResolveEncoding(CodePage codePage, string? path)
@@ -353,22 +319,6 @@ namespace VfpReader
                     null,
                     ex);
             }
-        }
-
-        private static VfpSchema BuildSchema(VfpHeader header)
-        {
-            return new VfpSchema(
-                header.Version,
-                header.RecordCount,
-                header.HeaderLength,
-                header.RecordLength,
-                header.LastUpdate,
-                header.CodePage,
-                header.DatabasePath,
-                header.HasIndex,
-                header.HasMemo,
-                header.IsDatabase,
-                header.Fields);
         }
     }
 }

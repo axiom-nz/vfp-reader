@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -42,15 +43,17 @@ namespace VfpReader.Internal
         /// </summary>
         public static MemoReader ForVersion(Stream stream, byte version)
         {
-            bool visualFoxPro = VfpHeader.IsVisualFoxPro(version);
-            bool foxPro = visualFoxPro || version == 0xF5 || version == 0xFB;
+            bool visualFoxPro = VfpVersion.IsVisualFoxPro(version);
+            bool foxPro = visualFoxPro
+                || version == VfpVersion.FoxProWithMemo
+                || version == VfpVersion.FoxBasePlusWithMemo;
 
             MemoFormat format;
             if (foxPro)
             {
                 format = MemoFormat.FoxPro;
             }
-            else if (version == 0x83)
+            else if (version == VfpVersion.Dbase3WithMemo)
             {
                 format = MemoFormat.Dbase3;
             }
@@ -74,10 +77,7 @@ namespace VfpReader.Internal
         {
             if (_pointerIsBinary)
             {
-                return record[offset]
-                    | ((long)record[offset + 1] << 8)
-                    | ((long)record[offset + 2] << 16)
-                    | ((long)record[offset + 3] << 24);
+                return BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(offset));
             }
 
             string text = Encoding.ASCII.GetString(record, offset, width).Trim();
@@ -178,10 +178,7 @@ namespace VfpReader.Internal
                 return null;
             }
 
-            long length = header[4]
-                | ((long)header[5] << 8)
-                | ((long)header[6] << 16)
-                | ((long)header[7] << 24);
+            long length = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(4));
 
             return ReadPayload(length);
         }
@@ -204,8 +201,8 @@ namespace VfpReader.Internal
                 return null;
             }
 
-            uint type = ReadBigEndianUInt32(header, 0);
-            uint size = ReadBigEndianUInt32(header, 4);
+            uint type = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(0));
+            uint size = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(4));
             if (type != 1 || size == 0)
             {
                 return null;
@@ -267,14 +264,6 @@ namespace VfpReader.Internal
             return _foxProBlockSize > 0 ? _foxProBlockSize : DefaultFoxProBlockSize;
         }
 
-        private static uint ReadBigEndianUInt32(byte[] bytes, int offset)
-        {
-            return ((uint)bytes[offset] << 24)
-                | ((uint)bytes[offset + 1] << 16)
-                | ((uint)bytes[offset + 2] << 8)
-                | bytes[offset + 3];
-        }
-
         private bool TrySeek(long position)
         {
             if (!_stream.CanSeek || position < 0)
@@ -300,28 +289,7 @@ namespace VfpReader.Internal
         /// </summary>
         private int ReadUpTo(byte[] buffer, int offset, int count)
         {
-            int read = 0;
-            while (read < count)
-            {
-                int n;
-                try
-                {
-                    n = _stream.Read(buffer, offset + read, count - read);
-                }
-                catch (IOException)
-                {
-                    return read;
-                }
-
-                if (n <= 0)
-                {
-                    break;
-                }
-
-                read += n;
-            }
-
-            return read;
+            return StreamFill.ReadAtMost(_stream, buffer, offset, count);
         }
 
         private enum MemoFormat

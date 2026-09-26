@@ -117,21 +117,7 @@ namespace VfpReader.Internal
         /// <summary>The index of a field by name, or -1. Case-insensitive.</summary>
         internal int FieldIndex(string name)
         {
-            return Array.FindIndex(
-                Fields,
-                f => string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase));
-        }
-
-        /// <summary>True when the version byte says a memo file is required.</summary>
-        internal static bool VersionHasMemo(byte version)
-        {
-            return version == 0x83 || version == 0x8B || version == 0xF5 || version == 0xFB;
-        }
-
-        /// <summary>True for the Visual FoxPro versions, which carry a database backlink.</summary>
-        internal static bool IsVisualFoxPro(byte version)
-        {
-            return version == 0x30 || version == 0x31 || version == 0x32;
+            return VfpFieldLookup.IndexOf(Fields, name);
         }
 
         /// <summary>True when any field is held in the memo file.</summary>

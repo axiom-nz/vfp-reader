@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -195,7 +196,7 @@ namespace VfpReader
 
         private object? ReadNumeric(VfpField field)
         {
-            string text = _encoding.GetString(_record, field.Offset, field.Width).Trim();
+            string text = ReadTrimmedText(field);
             if (text.Length == 0)
             {
                 return null;
@@ -208,7 +209,7 @@ namespace VfpReader
 
         private object? ReadFloat(VfpField field)
         {
-            string text = _encoding.GetString(_record, field.Offset, field.Width).Trim();
+            string text = ReadTrimmedText(field);
             if (text.Length == 0)
             {
                 return null;
@@ -217,6 +218,12 @@ namespace VfpReader
             return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
                 ? value
                 : (object?)null;
+        }
+
+        /// <summary>The field's text with surrounding whitespace removed.</summary>
+        private string ReadTrimmedText(VfpField field)
+        {
+            return _encoding.GetString(_record, field.Offset, field.Width).Trim();
         }
 
         private static bool? ReadLogical(byte value)
@@ -281,17 +288,12 @@ namespace VfpReader
 
         private int ReadInt32(int offset)
         {
-            return _record[offset]
-                | (_record[offset + 1] << 8)
-                | (_record[offset + 2] << 16)
-                | (_record[offset + 3] << 24);
+            return BinaryPrimitives.ReadInt32LittleEndian(_record.AsSpan(offset));
         }
 
         private long ReadInt64(int offset)
         {
-            long low = (uint)ReadInt32(offset);
-            long high = (uint)ReadInt32(offset + 4);
-            return low | (high << 32);
+            return BinaryPrimitives.ReadInt64LittleEndian(_record.AsSpan(offset));
         }
     }
 }

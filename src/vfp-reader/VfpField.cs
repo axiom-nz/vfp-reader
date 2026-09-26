@@ -77,9 +77,19 @@ namespace VfpReader
         /// <summary>Width the field occupies for a given character-widening convention.</summary>
         internal int WidthForLayout(bool wideChar)
         {
-            return wideChar && Type == VfpFieldType.Character && Decimals > 0
-                ? Length + Decimals * 256
-                : Length;
+            return WidthFor(Type, Length, Decimals, wideChar);
+        }
+
+        /// <summary>
+        /// The record width of a descriptor under one character-widening convention. FoxPro 2.x
+        /// sometimes stores a wide character field as <c>length + decimals * 256</c>; the layout
+        /// tries the widened reading first and falls back to the raw length.
+        /// </summary>
+        internal static int WidthFor(VfpFieldType type, int length, int decimals, bool wideChar)
+        {
+            return wideChar && type == VfpFieldType.Character && decimals > 0
+                ? length + decimals * 256
+                : length;
         }
 
         /// <inheritdoc />
