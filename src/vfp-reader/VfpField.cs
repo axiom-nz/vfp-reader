@@ -68,11 +68,24 @@ namespace VfpReader
         internal int Width { get; set; }
 
         /// <summary>
-        /// Index of this field's bit inside the hidden <c>_NullFlags</c> field, when the field
-        /// accepts nulls. See the layout notes: the bit order for <c>V</c> / <c>Q</c> fields is
-        /// still being verified against a Visual FoxPro 9 table.
+        /// Index of this field's null bit inside the hidden <c>_NullFlags</c> field, when the
+        /// field accepts nulls. Bits are allocated in field order; for a <c>V</c> / <c>Q</c>
+        /// field the null bit follows that field's <see cref="VarlengthBit"/>.
         /// </summary>
         internal int? NullBit { get; set; }
+
+        /// <summary>
+        /// Index of this field's "varlength" bit inside the hidden <c>_NullFlags</c> field, for a
+        /// <c>V</c> / <c>Q</c> field. When the bit is set the value's length is the last byte of
+        /// the field; otherwise the value fills the whole field.
+        /// </summary>
+        internal int? VarlengthBit { get; set; }
+
+        /// <summary>Whether this is a varlength field (<c>V</c> or <c>Q</c>).</summary>
+        internal bool IsVarlength
+        {
+            get { return Type == VfpFieldType.Varchar || Type == VfpFieldType.Varbinary; }
+        }
 
         /// <summary>Width the field occupies for a given character-widening convention.</summary>
         internal int WidthForLayout(bool wideChar)

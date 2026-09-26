@@ -309,11 +309,23 @@ namespace VfpReader.Internal
             return false;
         }
 
+        /// <summary>
+        /// Allocates the hidden <c>_NullFlags</c> bits in field order. Every <c>V</c> / <c>Q</c>
+        /// field takes a "varlength" bit first; a nullable field then takes a null bit. This is
+        /// the order Visual FoxPro documents for the hidden field, and the one the real
+        /// <c>dbase_32</c> fixture uses (its single <c>V</c> field owns bit 0).
+        /// </summary>
         private static void AssignNullBits(List<VfpField> fields)
         {
             int bit = 0;
             foreach (VfpField field in fields)
             {
+                if (field.IsVarlength)
+                {
+                    field.VarlengthBit = bit;
+                    bit++;
+                }
+
                 if (field.IsNullable)
                 {
                     field.NullBit = bit;

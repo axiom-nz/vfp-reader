@@ -68,8 +68,11 @@ namespace VfpReader
         /// a <see cref="double"/>, <c>I</c> / <c>+</c> an <see cref="int"/>, <c>Y</c> a
         /// <see cref="decimal"/>, <c>L</c> a <see cref="bool"/>, <c>D</c> / <c>T</c> / <c>@</c> a
         /// <see cref="DateTime"/>, <c>M</c> a <see cref="string"/> read from the memo file,
-        /// <c>G</c> / <c>P</c> / <c>W</c> a <c>byte[]</c> read from the memo file, and
-        /// <c>Unknown</c> a <c>byte[]</c>. A blank, unparseable or absent value is <c>null</c>.
+        /// <c>G</c> / <c>P</c> / <c>W</c> a <c>byte[]</c> read from the memo file,
+        /// <c>V</c> a <see cref="string"/> and <c>Q</c> a <c>byte[]</c>, and <c>Unknown</c> a
+        /// <c>byte[]</c>. A blank, unparseable, absent or
+        /// <c>NULL</c> value is <c>null</c>: a field whose bit in the hidden <c>_NullFlags</c> field
+        /// is set reads as <c>null</c> whatever its bytes say.
         /// </summary>
         public object? this[int index]
         {
@@ -80,7 +83,7 @@ namespace VfpReader
                     throw new ArgumentOutOfRangeException(nameof(index));
                 }
 
-                return ReadField(_header.Fields[index]);
+                return ReadField(index);
             }
         }
 
@@ -101,16 +104,28 @@ namespace VfpReader
                     throw new KeyNotFoundException("no field named " + name);
                 }
 
-                return ReadField(_header.Fields[index]);
+                return ReadField(index);
             }
         }
 
-        private object? ReadField(VfpField field)
+        private object? ReadField(int index)
         {
+            VfpField field = _header.Fields[index];
+            if (_header.IsNull(_record, index))
+            {
+                return null;
+            }
+
             switch (field.Type)
             {
                 case VfpFieldType.Character:
                     return field.IsBinary ? ReadBytes(field) : ReadCharacter(field);
+
+                case VfpFieldType.Varchar:
+                    return ReadVarlengthText(field, index);
+
+                case VfpFieldType.Varbinary:
+                    return ReadVarlengthBytes(field, index);
 
                 case VfpFieldType.Numeric:
                     return ReadNumeric(field);
@@ -147,11 +162,6 @@ namespace VfpReader
                 case VfpFieldType.Blob:
                     return ReadMemo(field, binary: true);
 
-                case VfpFieldType.Varchar:
-                case VfpFieldType.Varbinary:
-                    throw new NotSupportedException(
-                        "Reading varlength fields (type " + (char)field.Type + ") is not implemented yet.");
-
                 default:
                     return ReadBytes(field);
             }
@@ -167,6 +177,40 @@ namespace VfpReader
         {
             var bytes = new byte[field.Width];
             Buffer.BlockCopy(_record, field.Offset, bytes, 0, field.Width);
+            return bytes;
+        }
+
+        /// <summary>
+        /// The number of bytes a <c>V</c> / <c>Q</c> value actually occupies. The hidden
+        /// <c>_NullFlags</c> field holds a "varlength" bit: when it is set the last byte of the
+        /// field is the length, otherwise the value fills the whole field. A malformed length is
+        /// clamped to the field, so a bad file cannot run off the end of the record.
+        /// </summary>
+        private int Varlength(VfpField field, int index)
+        {
+            if (!_header.IsVarlength(_record, index) || field.Width == 0)
+            {
+                return field.Width;
+            }
+
+            // The last byte holds the length, so the value can never occupy the whole field.
+            int length = _record[field.Offset + field.Width - 1];
+            int maximum = field.Width - 1;
+            return length <= maximum ? length : maximum;
+        }
+
+        private string ReadVarlengthText(VfpField field, int index)
+        {
+            int length = Varlength(field, index);
+            string text = _encoding.GetString(_record, field.Offset, length);
+            return _trim ? text.TrimEnd(' ', '\0') : text;
+        }
+
+        private byte[] ReadVarlengthBytes(VfpField field, int index)
+        {
+            int length = Varlength(field, index);
+            var bytes = new byte[length];
+            Buffer.BlockCopy(_record, field.Offset, bytes, 0, length);
             return bytes;
         }
 

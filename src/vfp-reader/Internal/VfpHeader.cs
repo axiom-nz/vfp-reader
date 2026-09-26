@@ -103,10 +103,54 @@ namespace VfpReader.Internal
             return true;
         }
 
-        /// <summary>Whether the record's null-flags bytes mark <paramref name="index"/> as null.</summary>
+        /// <summary>Whether the record says field <paramref name="index"/> is null.</summary>
         internal bool IsNull(byte[] record, int index)
         {
             if (!TryGetNullSlot(index, out int offset, out byte mask) || offset >= record.Length)
+            {
+                return false;
+            }
+
+            return (record[offset] & mask) != 0;
+        }
+
+        /// <summary>
+        /// Resolves field <paramref name="index"/>'s "varlength" bit, the byte offset and bit mask
+        /// inside the record. Only a <c>V</c> / <c>Q</c> field with a hidden <c>_NullFlags</c>
+        /// field has one.
+        /// </summary>
+        internal bool TryGetVarlengthSlot(int index, out int offset, out byte mask)
+        {
+            offset = 0;
+            mask = 0;
+            if (!HasNullFlags || index < 0 || index >= Fields.Length)
+            {
+                return false;
+            }
+
+            int? bit = Fields[index].VarlengthBit;
+            if (bit is null)
+            {
+                return false;
+            }
+
+            offset = NullFlagsOffset + (bit.Value / 8);
+            if (offset >= NullFlagsOffset + NullFlagsWidth)
+            {
+                return false;
+            }
+
+            mask = (byte)(1 << (bit.Value % 8));
+            return true;
+        }
+
+        /// <summary>
+        /// Whether the record says field <paramref name="index"/> stores its length in the last
+        /// byte of the field, rather than filling the whole field.
+        /// </summary>
+        internal bool IsVarlength(byte[] record, int index)
+        {
+            if (!TryGetVarlengthSlot(index, out int offset, out byte mask) || offset >= record.Length)
             {
                 return false;
             }
