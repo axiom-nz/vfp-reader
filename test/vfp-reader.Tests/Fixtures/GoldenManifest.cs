@@ -137,7 +137,9 @@ namespace VfpReader.Tests.Fixtures
             new GoldenFixture("dbase_83_missing_memo", "ruby-dbf", "dbase_83_missing_memo.dbf", null, null, new[] { "dbase_83_missing_memo_record_0.yml" }, GoldenCapability.Memo),
             new GoldenFixture("dbase_8b", "ruby-dbf", "dbase_8b.dbf", "dbase_8b_summary.txt", null, new string[0], GoldenCapability.Memo),
             new GoldenFixture("dbase_f5", "ruby-dbf", "dbase_f5.dbf", "dbase_f5_summary.txt", null, new string[0], GoldenCapability.Memo),
-            new GoldenFixture("dbase_31_nullflags", "dbfdatareader", "dbase_31_nullflags.dbf", "dbase_31_nullflags_summary.txt", "dbase_31_nullflags.csv", new string[0], GoldenCapability.NullFlagsAndVarlength),
+            // The CSV oracle's _NullFlags column is empty for all rows and it has no V/Q field,
+            // so the row case is fixed-width and ready in Phase 2.
+            new GoldenFixture("dbase_31_nullflags", "dbfdatareader", "dbase_31_nullflags.dbf", "dbase_31_nullflags_summary.txt", "dbase_31_nullflags.csv", new string[0], GoldenCapability.FixedRecords),
         };
 
         /// <summary>The fixtures that carry a schema oracle.</summary>

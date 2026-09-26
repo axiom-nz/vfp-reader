@@ -10,12 +10,33 @@ namespace VfpReader.Tests.Golden
     /// </summary>
     public class RowGoldenTests
     {
-        [Fact(Skip = "Phase 2/4: no streaming row API; V/F/B and _NullFlags are not decoded yet")]
+        [Fact]
         public void dbase_31_nullflags_csv_matches()
         {
             GoldenFixture fixture = GoldenManifest.Find("dbase_31_nullflags");
             using var table = fixture.Open();
             GoldenRows.CompareCsv(fixture, table);
+        }
+
+        [Theory]
+        [InlineData("dbase_03")]
+        [InlineData("dbase_03_cyrillic")]
+        [InlineData("cp1251")]
+        [InlineData("dbase_31")]
+        public void Fixed_records_stream_to_the_declared_count(string fixtureName)
+        {
+            GoldenFixture fixture = GoldenManifest.Find(fixtureName);
+            ExpectedSummary summary = SummaryFile.Read(fixture.SummaryPath!);
+
+            using var table = fixture.Open();
+
+            long count = 0;
+            foreach (VfpRow row in table.ReadRows())
+            {
+                count++;
+            }
+
+            Assert.Equal(summary.RecordCount, count);
         }
 
         [Fact(Skip = "Phase 3: memo reading is not implemented")]
