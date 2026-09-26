@@ -1,0 +1,450 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using VfpReader.Tests.Fixtures;
+using Xunit;
+
+namespace VfpReader.Tests
+{
+    public class RecordReaderTests
+    {
+        private static VfpTable Open(DbfBuilder builder, VfpReadOptions? options = null)
+        {
+            return VfpTable.Open(new MemoryStream(builder.Build()), options: options);
+        }
+
+        [Fact]
+        public void Decodes_every_fixed_width_type()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("CH", 'C', 5);
+            builder.AddField("NUM", 'N', 6, decimals: 2);
+            builder.AddField("FLT", 'F', 6, decimals: 2);
+            builder.AddField("INT", 'I', 4);
+            builder.AddField("AUTO", '+', 4);
+            builder.AddField("CUR", 'Y', 8);
+            builder.AddField("DBL", 'B', 8);
+            builder.AddField("DBLO", 'O', 8);
+            builder.AddField("LOG", 'L', 1);
+            builder.AddField("DAT", 'D', 8);
+            builder.AddField("TS", 'T', 8);
+            builder.AddField("TSAT", '@', 8);
+            builder.AddField("UNK", 'Z', 3);
+
+            var payload = new List<byte>();
+            payload.AddRange(Encoding.ASCII.GetBytes("hello"));
+            payload.AddRange(Encoding.ASCII.GetBytes(" 12.34"));
+            payload.AddRange(Encoding.ASCII.GetBytes("  3.50"));
+            payload.AddRange(Int32(42));
+            payload.AddRange(Int32(7));
+            payload.AddRange(Int64(180000));          // 18.0000
+            payload.AddRange(Bits(BitConverter.DoubleToInt64Bits(1.5)));
+            payload.AddRange(Bits(BitConverter.DoubleToInt64Bits(-2.25)));
+            payload.Add((byte)'T');
+            payload.AddRange(Encoding.ASCII.GetBytes("20000101"));
+            payload.AddRange(DateParts(2451545, 0));
+            payload.AddRange(DateParts(2451545, 500));
+            payload.AddRange(new byte[] { 1, 2, 3 });
+
+            builder.AddRecord(false, payload.ToArray());
+
+            using VfpTable table = Open(builder);
+            VfpRow row = Assert.Single(table.ReadRows());
+
+            Assert.IsType<string>(row["CH"]);
+            Assert.Equal("hello", row["CH"]);
+            Assert.IsType<decimal>(row["NUM"]);
+            Assert.Equal(12.34m, row["NUM"]);
+            Assert.IsType<double>(row["FLT"]);
+            Assert.Equal(3.5, row["FLT"]);
+            Assert.IsType<int>(row["INT"]);
+            Assert.Equal(42, row["INT"]);
+            Assert.IsType<int>(row["AUTO"]);
+            Assert.Equal(7, row["AUTO"]);
+            Assert.IsType<decimal>(row["CUR"]);
+            Assert.Equal(18.0000m, row["CUR"]);
+            Assert.IsType<double>(row["DBL"]);
+            Assert.Equal(1.5, row["DBL"]);
+            Assert.IsType<double>(row["DBLO"]);
+            Assert.Equal(-2.25, row["DBLO"]);
+            Assert.IsType<bool>(row["LOG"]);
+            Assert.Equal(true, (bool?)row["LOG"]);
+            Assert.IsType<DateTime>(row["DAT"]);
+            Assert.Equal(new DateTime(2000, 1, 1), row["DAT"]);
+            Assert.IsType<DateTime>(row["TS"]);
+            Assert.Equal(new DateTime(2000, 1, 1), row["TS"]);
+            Assert.IsType<DateTime>(row["TSAT"]);
+            Assert.Equal(new DateTime(2000, 1, 1).AddMilliseconds(500), row["TSAT"]);
+            Assert.IsType<byte[]>(row["UNK"]);
+            Assert.Equal(new byte[] { 1, 2, 3 }, (byte[])row["UNK"]!);
+            Assert.Equal(13, row.FieldCount);
+        }
+
+        [Fact]
+        public void Blank_and_unknown_fixed_values_read_as_null()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NUM", 'N', 6, decimals: 2);
+            builder.AddField("FLT", 'F', 6, decimals: 2);
+            builder.AddField("LOG", 'L', 1);
+            builder.AddField("DAT", 'D', 8);
+
+            // One all-blank record: every parseable fixed type is empty, and '?' is unknown.
+            byte[] payload = Encoding.ASCII.GetBytes("            ?        ");
+
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = Assert.Single(table.ReadRows());
+
+            Assert.Null(row["NUM"]);
+            Assert.Null(row["FLT"]);
+            Assert.Null(row["LOG"]);
+            Assert.Null(row["DAT"]);
+        }
+
+        [Fact]
+        public void DateTime_epoch_and_milliseconds_round_trip()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("TS", 'T', 8);
+
+            var payload = new List<byte>();
+            payload.AddRange(DateParts(2451545, 0));
+            builder.AddRecord(false, payload.ToArray());
+
+            using VfpTable table = Open(builder);
+            VfpRow row = Assert.Single(table.ReadRows());
+
+            Assert.Equal(new DateTime(2000, 1, 1), row["TS"]);
+        }
+
+        [Fact]
+        public void Deleted_records_are_skipped_by_default()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(true, Encoding.ASCII.GetBytes("dead"));
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
+
+            using VfpTable table = Open(builder);
+
+            VfpRow row = Assert.Single(table.ReadRows());
+            Assert.Equal("live", row["NAME"]);
+            Assert.False(row.IsDeleted);
+        }
+
+        [Fact]
+        public void Include_deleted_returns_the_flag()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(true, Encoding.ASCII.GetBytes("dead"));
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
+
+            using VfpTable table = Open(builder, new VfpReadOptions { IncludeDeleted = true });
+
+            List<VfpRow> rows = table.ReadRows().ToList();
+            Assert.Equal(2, rows.Count);
+            Assert.True(rows[0].IsDeleted);
+            Assert.Equal("dead", rows[0]["NAME"]);
+            Assert.False(rows[1].IsDeleted);
+        }
+
+        [Fact]
+        public void Record_number_counts_skipped_records()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(true, Encoding.ASCII.GetBytes("dead"));
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
+
+            using VfpTable table = Open(builder);
+
+            VfpRow row = Assert.Single(table.ReadRows());
+            Assert.Equal(2L, row.RecordNumber);
+        }
+
+        [Fact]
+        public void Trim_character_fields_trims_by_default()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 6);
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("ab \0\0"));
+
+            using VfpTable table = Open(builder);
+
+            Assert.Equal("ab", Assert.Single(table.ReadRows())["NAME"]);
+        }
+
+        [Fact]
+        public void Untrimmed_character_fields_keep_the_width()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 6);
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("ab \0\0"));
+
+            using VfpTable table = Open(builder, new VfpReadOptions { TrimCharacterFields = false });
+
+            Assert.Equal("ab \0\0", Assert.Single(table.ReadRows())["NAME"]);
+        }
+
+        [Fact]
+        public void Character_decodes_with_the_header_code_page()
+        {
+            var builder = new DbfBuilder { LanguageDriver = 0x03 };
+            builder.AddField("NAME", 'C', 1);
+            builder.AddRecord(false, new byte[] { 0xE9 });
+
+            using VfpTable table = Open(builder);
+
+            Assert.Equal("\u00E9", Assert.Single(table.ReadRows())["NAME"]);
+        }
+
+        [Fact]
+        public void Binary_character_field_reads_bytes()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("BLOB", 'C', 3, binary: true);
+            builder.AddRecord(false, new byte[] { 0x00, 0xFF, 0x41 });
+
+            using VfpTable table = Open(builder);
+
+            Assert.Equal(new byte[] { 0x00, 0xFF, 0x41 }, (byte[])Assert.Single(table.ReadRows())["BLOB"]!);
+        }
+
+        [Fact]
+        public void Unknown_field_reads_its_raw_bytes()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("WEIRD", 'Z', 3);
+            builder.AddRecord(false, new byte[] { 9, 8, 7 });
+
+            using VfpTable table = Open(builder);
+
+            Assert.Equal(new byte[] { 9, 8, 7 }, (byte[])Assert.Single(table.ReadRows())["WEIRD"]!);
+        }
+
+        [Fact]
+        public void Memo_value_is_rejected_but_the_row_enumerates()
+        {
+            var builder = new DbfBuilder { Version = 0x30 };
+            builder.AddField("NOTES", 'M', 10);
+            builder.AddRecord(false, new byte[10]);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = Assert.Single(table.ReadRows());
+
+            Assert.Throws<NotSupportedException>(() => row["NOTES"]);
+        }
+
+        [Fact]
+        public void Varlength_value_is_rejected_but_the_row_enumerates()
+        {
+            var builder = new DbfBuilder { Version = 0x30 };
+            builder.AddField("TEXT", 'V', 10);
+            builder.AddRecord(false, new byte[10]);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = Assert.Single(table.ReadRows());
+
+            Assert.Throws<NotSupportedException>(() => row[0]);
+        }
+
+        [Fact]
+        public void Empty_table_yields_no_rows()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+
+            using VfpTable table = Open(builder);
+
+            Assert.Empty(table.ReadRows());
+        }
+
+        [Fact]
+        public void Truncated_record_names_the_record()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("abcd"));
+            byte[] bytes = builder.Build();
+
+            // Cut the single record in half; the header still claims one record.
+            var truncated = new byte[bytes.Length - 2];
+            Array.Copy(bytes, truncated, truncated.Length);
+
+            using VfpTable table = VfpTable.Open(new MemoryStream(truncated));
+
+            VfpFormatException ex = Assert.Throws<VfpFormatException>(
+                () => table.ReadRows().ToList());
+            Assert.Contains("record 1", ex.Message);
+        }
+
+        [Fact]
+        public void Non_seekable_stream_can_be_enumerated_once()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
+
+            using var stream = new NonSeekableStream(builder.Build());
+            using VfpTable table = VfpTable.Open(stream);
+
+            Assert.Equal("live", Assert.Single(table.ReadRows())["NAME"]);
+            Assert.Throws<InvalidOperationException>(() => table.ReadRows().ToList());
+        }
+
+        [Fact]
+        public void Indexer_by_name_is_case_insensitive()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
+
+            using VfpTable table = Open(builder);
+
+            Assert.Equal("live", Assert.Single(table.ReadRows())["name"]);
+        }
+
+        [Fact]
+        public void Indexer_rejects_a_bad_index()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
+
+            using VfpTable table = Open(builder);
+            VfpRow row = Assert.Single(table.ReadRows());
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => row[-1]);
+            Assert.Throws<ArgumentOutOfRangeException>(() => row[row.FieldCount]);
+        }
+
+        [Fact]
+        public void Indexer_rejects_an_unknown_name()
+        {
+            var builder = new DbfBuilder();
+            builder.AddField("NAME", 'C', 4);
+            builder.AddRecord(false, Encoding.ASCII.GetBytes("live"));
+
+            using VfpTable table = Open(builder);
+            VfpRow row = Assert.Single(table.ReadRows());
+
+            Assert.Throws<KeyNotFoundException>(() => row["MISSING"]);
+        }
+
+        private static byte[] Int32(int value)
+        {
+            uint bits = (uint)value;
+            return new[]
+            {
+                (byte)bits,
+                (byte)(bits >> 8),
+                (byte)(bits >> 16),
+                (byte)(bits >> 24),
+            };
+        }
+
+        private static byte[] Bits(long bits)
+        {
+            ulong value = (ulong)bits;
+            return new[]
+            {
+                (byte)value,
+                (byte)(value >> 8),
+                (byte)(value >> 16),
+                (byte)(value >> 24),
+                (byte)(value >> 32),
+                (byte)(value >> 40),
+                (byte)(value >> 48),
+                (byte)(value >> 56),
+            };
+        }
+
+        private static byte[] Int64(long value)
+        {
+            return Bits(value);
+        }
+
+        private static byte[] DateParts(int julianDay, int milliseconds)
+        {
+            var bytes = new List<byte>();
+            bytes.AddRange(Int32(julianDay));
+            bytes.AddRange(Int32(milliseconds));
+            return bytes.ToArray();
+        }
+
+        /// <summary>A read-only stream that refuses to seek, so the reader's single-pass path runs.</summary>
+        private sealed class NonSeekableStream : Stream
+        {
+            private readonly byte[] _bytes;
+            private int _position;
+
+            internal NonSeekableStream(byte[] bytes)
+            {
+                _bytes = bytes;
+            }
+
+            public override bool CanRead
+            {
+                get { return true; }
+            }
+
+            public override bool CanSeek
+            {
+                get { return false; }
+            }
+
+            public override bool CanWrite
+            {
+                get { return false; }
+            }
+
+            public override long Length
+            {
+                get { throw new NotSupportedException(); }
+            }
+
+            public override long Position
+            {
+                get { return _position; }
+                set { throw new NotSupportedException(); }
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                int available = Math.Min(count, _bytes.Length - _position);
+                if (available <= 0)
+                {
+                    return 0;
+                }
+
+                Array.Copy(_bytes, _position, buffer, offset, available);
+                _position += available;
+                return available;
+            }
+
+            public override long Seek(long offset, SeekOrigin origin)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override void SetLength(long value)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override void Flush()
+            {
+            }
+        }
+    }
+}
