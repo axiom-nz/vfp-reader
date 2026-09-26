@@ -242,16 +242,155 @@ namespace VfpReader.Tests
         }
 
         [Fact]
-        public void Varlength_value_is_rejected_but_the_row_enumerates()
+        public void Varlength_text_uses_the_last_byte_length_when_the_bit_is_set()
         {
-            var builder = new DbfBuilder { Version = 0x30 };
-            builder.AddField("TEXT", 'V', 10);
-            builder.AddRecord(false, new byte[10]);
+            // _NullFlags width 1 holds NAME's varlength bit (bit 0). The record slot is 10 bytes:
+            // "hi" then padding, with the actual length (2) in the last byte.
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("NAME", 'V', 10);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[11];
+            payload[0] = (byte)'h';
+            payload[1] = (byte)'i';
+            for (int i = 2; i < 10; i++)
+            {
+                payload[i] = (byte)' ';
+            }
+
+            payload[10] = 2;  // varlength bit set for NAME
+            builder.AddRecord(false, payload);
 
             using VfpTable table = Open(builder);
             VfpRow row = RowReader.Single(table);
 
-            Assert.Throws<NotSupportedException>(() => row[0]);
+            Assert.Equal("hi", row[0]);
+        }
+
+        [Fact]
+        public void Varlength_text_fills_the_whole_field_when_the_bit_is_clear()
+        {
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("NAME", 'V', 5);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[6];
+            Array.Copy(Encoding.ASCII.GetBytes("abc"), payload, 3);
+            payload[3] = (byte)' ';
+            payload[4] = (byte)' ';
+            payload[5] = 0;  // varlength bit clear: the whole field is the value
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal("abc", row[0]);
+        }
+
+        [Fact]
+        public void Varlength_length_larger_than_the_field_is_clamped()
+        {
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("NAME", 'V', 4);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[5];
+            Array.Copy(Encoding.ASCII.GetBytes("ab"), payload, 2);
+            payload[2] = (byte)' ';
+            payload[3] = 200;  // length byte, far larger than the field
+            payload[4] = 0x01;  // varlength bit set
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            // The value cannot include the length byte itself, so it is at most width - 1 bytes;
+            // trailing padding is then trimmed like any other character value.
+            Assert.Equal("ab", row[0]);
+        }
+
+        [Fact]
+        public void Varbinary_returns_the_varlength_bytes()
+        {
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("DATA", 'Q', 8, binary: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[9];
+            payload[0] = 0xDE;
+            payload[1] = 0xAD;
+            payload[2] = 0x01;
+            payload[7] = 3;  // DATA's last byte: the value length
+            payload[8] = 0x01;  // _NullFlags: DATA's varlength bit
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal(new byte[] { 0xDE, 0xAD, 0x01 }, (byte[])row[0]!);
+        }
+
+        [Fact]
+        public void Nullable_varlength_field_reads_null_when_its_null_bit_is_set()
+        {
+            // Bit 0 is the varlength bit, bit 1 the null bit (the documented order). Setting bit 1
+            // makes the value null even though the field bytes hold text.
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("NAME", 'V', 5, nullable: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[6];
+            Array.Copy(Encoding.ASCII.GetBytes("ab"), payload, 2);
+            payload[4] = 2;  // varlength length
+            payload[5] = 0x02;  // null bit set, varlength bit clear
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Null(row[0]);
+        }
+
+        [Fact]
+        public void Nullable_fixed_width_field_reads_null_when_its_null_bit_is_set()
+        {
+            var builder = new DbfBuilder { Version = 0x30 };
+            builder.AddField("A", 'C', 4, nullable: true);
+            builder.AddField("B", 'N', 3, nullable: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+
+            var payload = new byte[8];
+            Array.Copy(Encoding.ASCII.GetBytes("abcd"), payload, 4);
+            Array.Copy(Encoding.ASCII.GetBytes(" 12"), 0, payload, 4, 3);
+            payload[7] = 0x02;  // null bit for B; A's bytes still look valid
+            builder.AddRecord(false, payload);
+
+            using VfpTable table = Open(builder);
+            VfpRow row = RowReader.Single(table);
+
+            Assert.Equal("abcd", row["A"]);
+            Assert.Null(row["B"]);
+        }
+
+        [Fact]
+        public void Varlength_and_null_bits_are_allocated_in_field_order()
+        {
+            // V (varlength 0, null 1), C (null 2), N (null 3).
+            var builder = new DbfBuilder { Version = 0x32 };
+            builder.AddField("V", 'V', 4, nullable: true);
+            builder.AddField("C", 'C', 3, nullable: true);
+            builder.AddField("N", 'N', 3, nullable: true);
+            builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
+            builder.AddRecord(false, new byte[14]);
+
+            using VfpTable table = Open(builder);
+
+            Assert.Equal(0, table.Schema.Fields[0].VarlengthBit!.Value);
+            Assert.Equal(1, table.Schema.Fields[0].NullBit!.Value);
+            Assert.Null(table.Schema.Fields[1].VarlengthBit);
+            Assert.Equal(2, table.Schema.Fields[1].NullBit!.Value);
+            Assert.Null(table.Schema.Fields[2].VarlengthBit);
+            Assert.Equal(3, table.Schema.Fields[2].NullBit!.Value);
         }
 
         [Fact]

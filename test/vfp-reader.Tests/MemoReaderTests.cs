@@ -253,17 +253,6 @@ namespace VfpReader.Tests
         }
 
         [Fact]
-        public void Varlength_still_throws_after_memo_landed()
-        {
-            byte[] dbf = MemoTable(0x30, 'V', 4, new byte[] { 0, 0, 0, 0 });
-
-            using VfpTable table = Open(dbf, null);
-            VfpRow row = RowReader.Single(table);
-
-            Assert.Throws<NotSupportedException>(() => row["MEMO"]);
-        }
-
-        [Fact]
         public void Table_without_memo_columns_still_opens_beside_a_memo_file()
         {
             var builder = new DbfBuilder();

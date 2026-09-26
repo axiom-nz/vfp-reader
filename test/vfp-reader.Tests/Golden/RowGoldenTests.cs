@@ -40,6 +40,19 @@ namespace VfpReader.Tests.Golden
         }
 
         [Fact]
+        public void dbase_32_varlength_value_decodes()
+        {
+            // The real Visual FoxPro 0x32 table: NAME is a Varchar(250) whose hidden _NullFlags
+            // field has its varlength bit set (0x01), so the value length is the field's last byte
+            // (0x0e = 14) and the value is "Bad Meets Evil".
+            GoldenFixture fixture = GoldenManifest.Find("dbase_32");
+            using var table = fixture.Open();
+
+            VfpRow row = Assert.Single(table.ReadRows());
+            Assert.Equal("Bad Meets Evil", row["NAME"]);
+        }
+
+        [Fact]
         public void dbase_83_record_0_matches()
         {
             CompareRecord("dbase_83", "dbase_83_record_0.yml");
