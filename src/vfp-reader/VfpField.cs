@@ -5,11 +5,11 @@ namespace VfpReader
     /// <summary>
     /// One column of a table, in file order.
     /// </summary>
-    public sealed class DbfField
+    public sealed class VfpField
     {
-        internal DbfField(
+        internal VfpField(
             string name,
-            DbfFieldType type,
+            VfpFieldType type,
             byte length,
             byte decimals,
             bool isNullable,
@@ -35,7 +35,7 @@ namespace VfpReader
         public string Name { get; }
 
         /// <summary>The type parsed from the descriptor's type character.</summary>
-        public DbfFieldType Type { get; }
+        public VfpFieldType Type { get; }
 
         /// <summary>The raw length byte from the descriptor.</summary>
         public byte Length { get; }
@@ -77,7 +77,7 @@ namespace VfpReader
         /// <summary>Width the field occupies for a given character-widening convention.</summary>
         internal int WidthForLayout(bool wideChar)
         {
-            return wideChar && Type == DbfFieldType.Character && Decimals > 0
+            return wideChar && Type == VfpFieldType.Character && Decimals > 0
                 ? Length + Decimals * 256
                 : Length;
         }

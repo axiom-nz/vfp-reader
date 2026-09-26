@@ -7,7 +7,7 @@ namespace VfpReader
     /// </summary>
     /// <remarks>
     /// This is the set of pages <see cref="Internal.CodePageMap"/> can return from a language
-    /// driver, plus <see cref="Utf8"/> for callers who override <see cref="DbfReadOptions.Encoding"/>.
+    /// driver, plus <see cref="Utf8"/> for callers who override <see cref="VfpReadOptions.Encoding"/>.
     /// It is not exhaustive: the .NET base class library has no code-page enum and no notion of the
     /// DBF language-driver byte, so an encoding the caller forces is reported as its code page value
     /// even when that value has no member here.
@@ -51,7 +51,7 @@ namespace VfpReader
 
         /// <summary>
         /// UTF-8. Never recorded by a language driver; present so an explicit
-        /// <see cref="DbfReadOptions.Encoding"/> override is a named value.
+        /// <see cref="VfpReadOptions.Encoding"/> override is a named value.
         /// </summary>
         Utf8 = 65001,
     }

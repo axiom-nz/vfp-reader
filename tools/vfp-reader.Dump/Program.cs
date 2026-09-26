@@ -30,8 +30,8 @@ namespace VfpReader.Dump
 
         private static void Dump(string path)
         {
-            using DbfTable table = DbfTable.Open(path);
-            DbfSchema schema = table.Schema;
+            using VfpTable table = VfpTable.Open(path);
+            VfpSchema schema = table.Schema;
 
             Console.WriteLine("# " + path);
             Console.WriteLine(
@@ -45,7 +45,7 @@ namespace VfpReader.Dump
                 schema.DatabasePath.Length == 0 ? "-" : schema.DatabasePath);
 
             Console.WriteLine("# name\ttype\tlength\tdecimals\tnullable\tautoinc");
-            foreach (DbfField field in schema.Fields)
+            foreach (VfpField field in schema.Fields)
             {
                 Console.WriteLine(
                     "{0}\t{1}\t{2}\t{3}\t{4}\t{5}",

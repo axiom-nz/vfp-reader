@@ -11,7 +11,7 @@ namespace VfpReader.Tests.Golden
     /// </summary>
     internal static class GoldenAssert
     {
-        public static void Schema(string fixture, ExpectedSummary expected, DbfSchema actual)
+        public static void Schema(string fixture, ExpectedSummary expected, VfpSchema actual)
         {
             AssertEqual(fixture + " version", expected.Version, actual.Version);
             AssertEqual(fixture + " record count", expected.RecordCount, actual.RecordCount);
@@ -27,7 +27,7 @@ namespace VfpReader.Tests.Golden
             for (int i = 0; i < expectedFields.Count; i++)
             {
                 ExpectedField want = expectedFields[i];
-                DbfField got = actual.Fields[i];
+                VfpField got = actual.Fields[i];
                 string where = fixture + ": field[" + i + "]";
 
                 AssertEqual(where + " name", want.Name, got.Name);

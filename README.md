@@ -26,7 +26,7 @@ using VfpReader;
 // On .NET Core, code pages other than UTF-8 need the provider registered once:
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-using var table = DbfTable.Open("invoice.dbf", new DbfReadOptions
+using var table = VfpTable.Open("invoice.dbf", new VfpReadOptions
 {
     MemoPath = null,            // default: sibling .fpt / .dbt, case-insensitive
     Encoding = null,            // default: header byte 29 (CodePage.Windows1252 when 0)
@@ -34,8 +34,8 @@ using var table = DbfTable.Open("invoice.dbf", new DbfReadOptions
     TrimCharacterFields = true,
 });
 
-DbfSchema schema = table.Schema;
-foreach (DbfField field in schema.Fields)
+VfpSchema schema = table.Schema;
+foreach (VfpField field in schema.Fields)
     Console.WriteLine($"{field.Name} {field.Type} {field.Length},{field.Decimals} null={field.IsNullable}");
 Console.WriteLine($"code page {schema.CodePage}");   // e.g. CodePage.Ibm850
 ```

@@ -101,15 +101,15 @@ namespace VfpReader.Tests.Fixtures
         }
 
         /// <summary>Opens the table with any fixture-specific encoding override applied.</summary>
-        public DbfTable Open()
+        public VfpTable Open()
         {
-            var options = new DbfReadOptions();
+            var options = new VfpReadOptions();
             if (EncodingCodePage is CodePage codePage)
             {
                 options.Encoding = Encoding.GetEncoding((int)codePage);
             }
 
-            return DbfTable.Open(TablePath, options);
+            return VfpTable.Open(TablePath, options);
         }
 
         public override string ToString()

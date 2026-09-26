@@ -11,7 +11,7 @@ namespace VfpReader
     /// owns its bytes: it stays valid after the reader advances and after the table is disposed.
     /// Values are decoded on demand, so an unused column is never decoded.
     /// </summary>
-    public sealed class DbfRow
+    public sealed class VfpRow
     {
         private const byte DeletedFlag = (byte)'*';
 
@@ -21,12 +21,12 @@ namespace VfpReader
         /// </summary>
         private const long JulianEpoch = 1721426L;
 
-        private readonly DbfHeader _header;
+        private readonly VfpHeader _header;
         private readonly Encoding _encoding;
         private readonly byte[] _record;
         private readonly bool _trim;
 
-        internal DbfRow(DbfHeader header, Encoding encoding, byte[] record, long recordNumber, bool trim)
+        internal VfpRow(VfpHeader header, Encoding encoding, byte[] record, long recordNumber, bool trim)
         {
             _header = header;
             _encoding = encoding;
@@ -47,7 +47,7 @@ namespace VfpReader
             get { return _record.Length > 0 && _record[0] == DeletedFlag; }
         }
 
-        /// <summary>The number of visible columns, the same as <see cref="DbfSchema.FieldCount"/>.</summary>
+        /// <summary>The number of visible columns, the same as <see cref="VfpSchema.FieldCount"/>.</summary>
         public int FieldCount
         {
             get { return _header.Fields.Length; }
@@ -95,49 +95,49 @@ namespace VfpReader
             }
         }
 
-        private object? ReadField(DbfField field)
+        private object? ReadField(VfpField field)
         {
             switch (field.Type)
             {
-                case DbfFieldType.Character:
+                case VfpFieldType.Character:
                     return field.IsBinary ? ReadBytes(field) : ReadCharacter(field);
 
-                case DbfFieldType.Numeric:
+                case VfpFieldType.Numeric:
                     return ReadNumeric(field);
 
-                case DbfFieldType.Float:
+                case VfpFieldType.Float:
                     return ReadFloat(field);
 
-                case DbfFieldType.Integer:
-                case DbfFieldType.AutoIncrement:
+                case VfpFieldType.Integer:
+                case VfpFieldType.AutoIncrement:
                     return ReadInt32(field.Offset);
 
-                case DbfFieldType.Currency:
+                case VfpFieldType.Currency:
                     return (decimal)ReadInt64(field.Offset) / 10000m;
 
-                case DbfFieldType.Double:
-                case DbfFieldType.DoubleO:
+                case VfpFieldType.Double:
+                case VfpFieldType.DoubleO:
                     return BitConverter.Int64BitsToDouble(ReadInt64(field.Offset));
 
-                case DbfFieldType.Logical:
+                case VfpFieldType.Logical:
                     return ReadLogical(_record[field.Offset]);
 
-                case DbfFieldType.Date:
+                case VfpFieldType.Date:
                     return ReadDate(field.Offset);
 
-                case DbfFieldType.DateTime:
-                case DbfFieldType.DateTimeAt:
+                case VfpFieldType.DateTime:
+                case VfpFieldType.DateTimeAt:
                     return ReadDateTime(field.Offset);
 
-                case DbfFieldType.Memo:
-                case DbfFieldType.General:
-                case DbfFieldType.Picture:
-                case DbfFieldType.Blob:
+                case VfpFieldType.Memo:
+                case VfpFieldType.General:
+                case VfpFieldType.Picture:
+                case VfpFieldType.Blob:
                     throw new NotSupportedException(
                         "Reading memo fields (type " + (char)field.Type + ") is not implemented yet.");
 
-                case DbfFieldType.Varchar:
-                case DbfFieldType.Varbinary:
+                case VfpFieldType.Varchar:
+                case VfpFieldType.Varbinary:
                     throw new NotSupportedException(
                         "Reading varlength fields (type " + (char)field.Type + ") is not implemented yet.");
 
@@ -146,20 +146,20 @@ namespace VfpReader
             }
         }
 
-        private string ReadCharacter(DbfField field)
+        private string ReadCharacter(VfpField field)
         {
             string text = _encoding.GetString(_record, field.Offset, field.Width);
             return _trim ? text.TrimEnd(' ', '\0') : text;
         }
 
-        private byte[] ReadBytes(DbfField field)
+        private byte[] ReadBytes(VfpField field)
         {
             var bytes = new byte[field.Width];
             Buffer.BlockCopy(_record, field.Offset, bytes, 0, field.Width);
             return bytes;
         }
 
-        private object? ReadNumeric(DbfField field)
+        private object? ReadNumeric(VfpField field)
         {
             string text = _encoding.GetString(_record, field.Offset, field.Width).Trim();
             if (text.Length == 0)
@@ -172,7 +172,7 @@ namespace VfpReader
                 : (object?)null;
         }
 
-        private object? ReadFloat(DbfField field)
+        private object? ReadFloat(VfpField field)
         {
             string text = _encoding.GetString(_record, field.Offset, field.Width).Trim();
             if (text.Length == 0)

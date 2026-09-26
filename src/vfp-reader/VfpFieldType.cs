@@ -4,7 +4,7 @@ namespace VfpReader
     /// The one-byte type code stored in a field descriptor at offset 11. The numeric value of each
     /// member is the ASCII character that appears in the file.
     /// </summary>
-    public enum DbfFieldType : byte
+    public enum VfpFieldType : byte
     {
         /// <summary>A type character this reader does not know; the raw field bytes are returned.</summary>
         Unknown = 0,
@@ -67,33 +67,33 @@ namespace VfpReader
         NullFlags = (byte)'0',
     }
 
-    internal static class DbfFieldTypes
+    internal static class VfpFieldTypes
     {
-        /// <summary>Maps a raw type byte to a known member, or <see cref="DbfFieldType.Unknown"/>.</summary>
-        internal static DbfFieldType FromByte(byte code)
+        /// <summary>Maps a raw type byte to a known member, or <see cref="VfpFieldType.Unknown"/>.</summary>
+        internal static VfpFieldType FromByte(byte code)
         {
             switch (code)
             {
-                case (byte)'C': return DbfFieldType.Character;
-                case (byte)'N': return DbfFieldType.Numeric;
-                case (byte)'F': return DbfFieldType.Float;
-                case (byte)'L': return DbfFieldType.Logical;
-                case (byte)'D': return DbfFieldType.Date;
-                case (byte)'T': return DbfFieldType.DateTime;
-                case (byte)'M': return DbfFieldType.Memo;
-                case (byte)'G': return DbfFieldType.General;
-                case (byte)'P': return DbfFieldType.Picture;
-                case (byte)'Y': return DbfFieldType.Currency;
-                case (byte)'I': return DbfFieldType.Integer;
-                case (byte)'B': return DbfFieldType.Double;
-                case (byte)'O': return DbfFieldType.DoubleO;
-                case (byte)'+': return DbfFieldType.AutoIncrement;
-                case (byte)'V': return DbfFieldType.Varchar;
-                case (byte)'Q': return DbfFieldType.Varbinary;
-                case (byte)'W': return DbfFieldType.Blob;
-                case (byte)'@': return DbfFieldType.DateTimeAt;
-                case (byte)'0': return DbfFieldType.NullFlags;
-                default: return DbfFieldType.Unknown;
+                case (byte)'C': return VfpFieldType.Character;
+                case (byte)'N': return VfpFieldType.Numeric;
+                case (byte)'F': return VfpFieldType.Float;
+                case (byte)'L': return VfpFieldType.Logical;
+                case (byte)'D': return VfpFieldType.Date;
+                case (byte)'T': return VfpFieldType.DateTime;
+                case (byte)'M': return VfpFieldType.Memo;
+                case (byte)'G': return VfpFieldType.General;
+                case (byte)'P': return VfpFieldType.Picture;
+                case (byte)'Y': return VfpFieldType.Currency;
+                case (byte)'I': return VfpFieldType.Integer;
+                case (byte)'B': return VfpFieldType.Double;
+                case (byte)'O': return VfpFieldType.DoubleO;
+                case (byte)'+': return VfpFieldType.AutoIncrement;
+                case (byte)'V': return VfpFieldType.Varchar;
+                case (byte)'Q': return VfpFieldType.Varbinary;
+                case (byte)'W': return VfpFieldType.Blob;
+                case (byte)'@': return VfpFieldType.DateTimeAt;
+                case (byte)'0': return VfpFieldType.NullFlags;
+                default: return VfpFieldType.Unknown;
             }
         }
     }

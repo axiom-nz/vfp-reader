@@ -14,7 +14,7 @@ namespace VfpReader.Tests
             builder.AddField("B", 'I', 4);
             builder.AddField("C", 'D', 8);
 
-            using DbfTable table = DbfTable.Open(new MemoryStream(builder.Build()));
+            using VfpTable table = VfpTable.Open(new MemoryStream(builder.Build()));
 
             Assert.Equal(1, table.Schema.Fields[0].Offset);
             Assert.Equal(5, table.Schema.Fields[0].Width);
@@ -36,7 +36,7 @@ namespace VfpReader.Tests
             builder.AddField("ID", 'I', 4);
             builder.AddRecord(false, new byte[1 + 266 + 4 - 1]);
 
-            using DbfTable table = DbfTable.Open(new MemoryStream(builder.Build()));
+            using VfpTable table = VfpTable.Open(new MemoryStream(builder.Build()));
 
             Assert.Equal(266, table.Schema.Fields[0].Width);
             Assert.Equal(1, table.Schema.Fields[0].Offset);
@@ -55,7 +55,7 @@ namespace VfpReader.Tests
             builder.AddField("ID", 'I', 4);
             builder.AddRecord(false, new byte[1 + 10 + 4 - 1]);
 
-            using DbfTable table = DbfTable.Open(new MemoryStream(builder.Build()));
+            using VfpTable table = VfpTable.Open(new MemoryStream(builder.Build()));
 
             Assert.Equal(10, table.Schema.Fields[0].Width);
             Assert.Equal(1, table.Schema.Fields[0].Offset);
@@ -71,7 +71,7 @@ namespace VfpReader.Tests
             builder.AddField("B", 'I', 4);
             builder.AddRecord(false, new byte[5]);
 
-            Assert.Throws<DbfFormatException>(() => DbfTable.Open(new MemoryStream(builder.Build())));
+            Assert.Throws<VfpFormatException>(() => VfpTable.Open(new MemoryStream(builder.Build())));
         }
     }
 }

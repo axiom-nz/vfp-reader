@@ -6,13 +6,13 @@ namespace VfpReader.Internal
     /// <summary>
     /// Everything the header says, plus where each visible field sits inside a record and where
     /// the hidden null-flags field sits. This is the internal, fully-resolved view that
-    /// <see cref="DbfSchema"/> and the record decoder share.
+    /// <see cref="VfpSchema"/> and the record decoder share.
     /// </summary>
-    internal sealed class DbfHeader
+    internal sealed class VfpHeader
     {
-        internal DbfHeader(
+        internal VfpHeader(
             byte version,
-            DbfField[] fields,
+            VfpField[] fields,
             long recordCount,
             int headerLength,
             int recordLength,
@@ -42,7 +42,7 @@ namespace VfpReader.Internal
 
         internal byte Version { get; }
 
-        internal DbfField[] Fields { get; }
+        internal VfpField[] Fields { get; }
 
         internal long RecordCount { get; }
 
@@ -135,13 +135,13 @@ namespace VfpReader.Internal
         }
 
         /// <summary>True when any field is held in the memo file.</summary>
-        internal static bool FieldsHaveMemo(DbfField[] fields)
+        internal static bool FieldsHaveMemo(VfpField[] fields)
         {
             return fields.Any(
-                f => f.Type == DbfFieldType.Memo
-                    || f.Type == DbfFieldType.General
-                    || f.Type == DbfFieldType.Picture
-                    || f.Type == DbfFieldType.Blob);
+                f => f.Type == VfpFieldType.Memo
+                    || f.Type == VfpFieldType.General
+                    || f.Type == VfpFieldType.Picture
+                    || f.Type == VfpFieldType.Blob);
         }
     }
 }

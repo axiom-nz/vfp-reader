@@ -8,9 +8,9 @@ namespace VfpReader.Tests
 {
     public class HeaderTests
     {
-        private static DbfTable Open(DbfBuilder builder)
+        private static VfpTable Open(DbfBuilder builder)
         {
-            return DbfTable.Open(new MemoryStream(builder.Build()));
+            return VfpTable.Open(new MemoryStream(builder.Build()));
         }
 
         [Fact]
@@ -21,7 +21,7 @@ namespace VfpReader.Tests
             builder.AddField("AGE", 'N', 3);
             builder.AddRecord(false, new byte[23]);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(0x30, table.Schema.Version);
             Assert.Equal(1L, table.Schema.RecordCount);
@@ -44,7 +44,7 @@ namespace VfpReader.Tests
             bytes[6] = 0xFF;
             bytes[7] = 0xFF;
 
-            using DbfTable table = DbfTable.Open(new MemoryStream(bytes));
+            using VfpTable table = VfpTable.Open(new MemoryStream(bytes));
 
             Assert.Equal(4294967295L, table.Schema.RecordCount);
         }
@@ -57,20 +57,20 @@ namespace VfpReader.Tests
             builder.AddField("AMOUNT", 'N', 12, decimals: 2);
             builder.AddField("STAMP", 'T', 8);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
-            DbfField name = table.Schema.Fields[0];
+            VfpField name = table.Schema.Fields[0];
             Assert.Equal("NAME", name.Name);
-            Assert.Equal(DbfFieldType.Character, name.Type);
+            Assert.Equal(VfpFieldType.Character, name.Type);
             Assert.Equal(20, name.Length);
             Assert.True(name.IsNullable);
 
-            DbfField amount = table.Schema.Fields[1];
-            Assert.Equal(DbfFieldType.Numeric, amount.Type);
+            VfpField amount = table.Schema.Fields[1];
+            Assert.Equal(VfpFieldType.Numeric, amount.Type);
             Assert.Equal(2, amount.Decimals);
             Assert.False(amount.IsNullable);
 
-            Assert.Equal(DbfFieldType.DateTime, table.Schema.Fields[2].Type);
+            Assert.Equal(VfpFieldType.DateTime, table.Schema.Fields[2].Type);
         }
 
         [Fact]
@@ -81,7 +81,7 @@ namespace VfpReader.Tests
             builder.AddField("B", 'N', 10, nullable: true);
             builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(2, table.Schema.FieldCount);
             Assert.Equal(-1, table.Schema.FieldIndex("_NullFlags"));
@@ -98,7 +98,7 @@ namespace VfpReader.Tests
             builder.AddField("A", 'C', 5, nullable: true);
             builder.AddField("_nullflags", '0', 1, binary: true, system: true);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(1, table.Schema.FieldCount);
             Assert.Equal(-1, table.Schema.FieldIndex("_NullFlags"));
@@ -112,7 +112,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder();
             builder.AddField("_NullFlags", '0', 1, binary: true, system: true);
 
-            DbfFormatException ex = Assert.Throws<DbfFormatException>(() => Open(builder));
+            VfpFormatException ex = Assert.Throws<VfpFormatException>(() => Open(builder));
 
             Assert.Contains("no fields", ex.Message);
         }
@@ -123,7 +123,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0x30, DatabasePath = @"..\data\vfp.dbc" };
             builder.AddField("ID", 'I', 4);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(@"..\data\vfp.dbc", table.Schema.DatabasePath);
         }
@@ -134,7 +134,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0x30 };
             builder.AddField("ID", 'I', 4);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(string.Empty, table.Schema.DatabasePath);
         }
@@ -145,7 +145,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0x03 };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(string.Empty, table.Schema.DatabasePath);
             Assert.Equal(32 + 32 + 1, table.Schema.HeaderLength);
@@ -157,7 +157,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0x30 };
             builder.AddField("NOTES", 'M', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.True(table.Schema.HasMemo);
         }
@@ -168,7 +168,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0x83 };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.True(table.Schema.HasMemo);
         }
@@ -181,7 +181,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0xFB };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.True(table.Schema.HasMemo);
         }
@@ -196,7 +196,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0x03 };
             builder.AddField("DATA", type, 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.True(table.Schema.HasMemo);
         }
@@ -207,9 +207,9 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder();
             builder.AddField("WEIRD", 'Z', 4);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
-            Assert.Equal(DbfFieldType.Unknown, table.Schema.Fields[0].Type);
+            Assert.Equal(VfpFieldType.Unknown, table.Schema.Fields[0].Type);
         }
 
         [Fact]
@@ -218,9 +218,9 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Version = 0x31 };
             builder.AddField("ID", 'I', 4, autoIncrementStep: 1, autoIncrementNext: 42);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
-            DbfField id = table.Schema.Fields[0];
+            VfpField id = table.Schema.Fields[0];
             Assert.True(id.IsAutoIncrement);
             Assert.Equal(42u, id.AutoIncrementNext);
             Assert.Equal(1, id.AutoIncrementStep);
@@ -232,9 +232,9 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { LanguageDriver = 0xFF };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = DbfTable.Open(
+            using VfpTable table = VfpTable.Open(
                 new MemoryStream(builder.Build()),
-                options: new DbfReadOptions { Encoding = Encoding.GetEncoding(850) });
+                options: new VfpReadOptions { Encoding = Encoding.GetEncoding(850) });
 
             Assert.Equal(CodePage.Ibm850, table.Schema.CodePage);
         }
@@ -245,7 +245,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { LanguageDriver = 0xFF };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(CodePage.Windows1252, table.Schema.CodePage);
         }
@@ -256,7 +256,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Month = 13, Day = 40 };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Null(table.Schema.LastUpdate);
         }
@@ -269,7 +269,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder { Year = 124, Month = 4, Day = 31 };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Null(table.Schema.LastUpdate);
         }
@@ -287,8 +287,8 @@ namespace VfpReader.Tests
             bytes[32 + 11] = (byte)'C';
             bytes[32 + 16] = 10;
 
-            DbfFormatException ex = Assert.Throws<DbfFormatException>(
-                () => DbfTable.Open(new MemoryStream(bytes)));
+            VfpFormatException ex = Assert.Throws<VfpFormatException>(
+                () => VfpTable.Open(new MemoryStream(bytes)));
 
             Assert.Contains("not terminated", ex.Message);
         }
@@ -307,7 +307,7 @@ namespace VfpReader.Tests
             };
             builder.AddField("NAME", 'C', 10);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.True(table.Schema.HasIndex);
             Assert.True(table.Schema.HasMemo);
@@ -320,9 +320,9 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder();
             builder.AddField("DATA", 'C', 10, system: true, binary: true);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
-            DbfField field = table.Schema.Fields[0];
+            VfpField field = table.Schema.Fields[0];
             Assert.True(field.IsSystem);
             Assert.True(field.IsBinary);
         }
@@ -335,7 +335,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder();
             builder.AddField("DATA", 'C', 10, binary: true);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.True(table.Schema.Fields[0].IsBinary);
             Assert.False(table.Schema.Fields[0].IsAutoIncrement);
@@ -348,7 +348,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder();
             builder.AddField("A", 'C', 4);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Throws<ArgumentNullException>(() => table.Schema.FieldIndex(null!));
             Assert.Throws<ArgumentNullException>(() => table.Schema.FindField(null!));
@@ -360,7 +360,7 @@ namespace VfpReader.Tests
             var builder = new DbfBuilder();
             builder.AddField("CustomerId", 'I', 4);
 
-            using DbfTable table = Open(builder);
+            using VfpTable table = Open(builder);
 
             Assert.Equal(0, table.Schema.FieldIndex("customerid"));
             Assert.NotNull(table.Schema.FindField("CUSTOMERID"));
@@ -376,8 +376,8 @@ namespace VfpReader.Tests
             var truncated = new byte[40];
             Array.Copy(bytes, truncated, truncated.Length);
 
-            DbfFormatException ex = Assert.Throws<DbfFormatException>(
-                () => DbfTable.Open(new MemoryStream(truncated)));
+            VfpFormatException ex = Assert.Throws<VfpFormatException>(
+                () => VfpTable.Open(new MemoryStream(truncated)));
 
             Assert.Equal(8, ex.Offset);
         }
@@ -391,8 +391,8 @@ namespace VfpReader.Tests
             bytes[10] = 1;
             bytes[32] = 0x0D;
 
-            DbfFormatException ex = Assert.Throws<DbfFormatException>(
-                () => DbfTable.Open(new MemoryStream(bytes)));
+            VfpFormatException ex = Assert.Throws<VfpFormatException>(
+                () => VfpTable.Open(new MemoryStream(bytes)));
 
             Assert.Contains("no fields", ex.Message);
         }
@@ -406,7 +406,7 @@ namespace VfpReader.Tests
             bytes[10] = 1;
             bytes[32] = (byte)'C';
 
-            Assert.Throws<DbfFormatException>(() => DbfTable.Open(new MemoryStream(bytes)));
+            Assert.Throws<VfpFormatException>(() => VfpTable.Open(new MemoryStream(bytes)));
         }
 
         [Fact]
@@ -418,8 +418,8 @@ namespace VfpReader.Tests
             bytes[10] = 0;
             bytes[32] = 0x0D;
 
-            DbfFormatException ex = Assert.Throws<DbfFormatException>(
-                () => DbfTable.Open(new MemoryStream(bytes)));
+            VfpFormatException ex = Assert.Throws<VfpFormatException>(
+                () => VfpTable.Open(new MemoryStream(bytes)));
 
             Assert.Contains("record length", ex.Message);
         }
@@ -427,21 +427,21 @@ namespace VfpReader.Tests
         [Fact]
         public void File_shorter_than_a_header_throws()
         {
-            Assert.Throws<DbfFormatException>(() => DbfTable.Open(new MemoryStream(new byte[10])));
+            Assert.Throws<VfpFormatException>(() => VfpTable.Open(new MemoryStream(new byte[10])));
         }
 
         [Fact]
         public void Open_rejects_null_and_unreadable_inputs()
         {
-            Assert.Throws<ArgumentNullException>(() => DbfTable.Open((string)null!));
-            Assert.Throws<ArgumentNullException>(() => DbfTable.Open((Stream)null!));
+            Assert.Throws<ArgumentNullException>(() => VfpTable.Open((string)null!));
+            Assert.Throws<ArgumentNullException>(() => VfpTable.Open((Stream)null!));
 
             var builder = new DbfBuilder();
             builder.AddField("NAME", 'C', 10);
             var stream = new MemoryStream(builder.Build());
             stream.Dispose();
 
-            Assert.Throws<ArgumentException>(() => DbfTable.Open(stream));
+            Assert.Throws<ArgumentException>(() => VfpTable.Open(stream));
         }
 
         [Fact]
@@ -453,7 +453,7 @@ namespace VfpReader.Tests
             File.WriteAllBytes(path, new byte[10]);
             try
             {
-                DbfFormatException ex = Assert.Throws<DbfFormatException>(() => DbfTable.Open(path));
+                VfpFormatException ex = Assert.Throws<VfpFormatException>(() => VfpTable.Open(path));
 
                 Assert.Equal(path, ex.Path);
                 Assert.Contains(path, ex.Message);

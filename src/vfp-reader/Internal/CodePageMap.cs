@@ -8,9 +8,9 @@ namespace VfpReader.Internal
     /// several drivers share one page. The mapping is the dBase / FoxPro language-driver ID (LDID)
     /// table; the code page numbers are the Windows identifiers
     /// <see cref="System.Text.Encoding.GetEncoding(int)"/> accepts. The .NET base class library has
-    /// no notion of the language-driver byte, so the table lives here. <see cref="DbfTable"/>
+    /// no notion of the language-driver byte, so the table lives here. <see cref="VfpTable"/>
     /// resolves the page through <c>CodePagesEncodingProvider</c>, and
-    /// <see cref="DbfReadOptions.Encoding"/> can bypass the lookup entirely.
+    /// <see cref="VfpReadOptions.Encoding"/> can bypass the lookup entirely.
     ///
     /// Unknown drivers, including <c>0x00</c> ("no code page recorded"), return <c>null</c> and the
     /// caller falls back to <see cref="DefaultCodePage"/>. The FoxDevStudio reader (which this was

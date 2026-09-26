@@ -7,11 +7,11 @@ namespace VfpReader
     /// What a table header says about the table: its version, size, code page and columns. It is
     /// known without reading any records, so it is available as soon as the table is opened.
     /// </summary>
-    public sealed class DbfSchema
+    public sealed class VfpSchema
     {
-        private readonly DbfField[] _fields;
+        private readonly VfpField[] _fields;
 
-        internal DbfSchema(
+        internal VfpSchema(
             byte version,
             long recordCount,
             int headerLength,
@@ -22,7 +22,7 @@ namespace VfpReader
             bool hasIndex,
             bool hasMemo,
             bool isDatabase,
-            DbfField[] fields)
+            VfpField[] fields)
         {
             Version = version;
             RecordCount = recordCount;
@@ -54,7 +54,7 @@ namespace VfpReader
 
         /// <summary>
         /// The effective code page: the header's language driver, or the caller's
-        /// <see cref="DbfReadOptions.Encoding"/> override.
+        /// <see cref="VfpReadOptions.Encoding"/> override.
         /// </summary>
         public CodePage CodePage { get; }
 
@@ -74,7 +74,7 @@ namespace VfpReader
         public bool IsDatabase { get; }
 
         /// <summary>The columns, in file order. The hidden <c>_NullFlags</c> field is never listed.</summary>
-        public IReadOnlyList<DbfField> Fields
+        public IReadOnlyList<VfpField> Fields
         {
             get { return _fields; }
         }
@@ -105,7 +105,7 @@ namespace VfpReader
         }
 
         /// <summary>The field called <paramref name="name"/>, or <c>null</c>. Case-insensitive.</summary>
-        public DbfField? FindField(string name)
+        public VfpField? FindField(string name)
         {
             int index = FieldIndex(name);
             return index < 0 ? null : _fields[index];

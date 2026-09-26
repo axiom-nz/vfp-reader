@@ -10,23 +10,23 @@ namespace VfpReader
     /// A read-only view of one DBF table. Opening it reads and validates the header; records are
     /// streamed later, one at a time, without loading the table.
     /// </summary>
-    public sealed class DbfTable : IDisposable
+    public sealed class VfpTable : IDisposable
     {
         private readonly Stream _dbf;
         private readonly Stream? _memo;
         private readonly bool _ownsDbf;
         private readonly bool _ownsMemo;
-        private readonly DbfReadOptions _options;
-        private readonly DbfHeader _header;
+        private readonly VfpReadOptions _options;
+        private readonly VfpHeader _header;
         private bool _disposed;
 
-        private DbfTable(
+        private VfpTable(
             Stream dbf,
             Stream? memo,
             bool ownsDbf,
             bool ownsMemo,
-            DbfReadOptions options,
-            DbfHeader header,
+            VfpReadOptions options,
+            VfpHeader header,
             Encoding encoding)
         {
             _dbf = dbf;
@@ -40,21 +40,21 @@ namespace VfpReader
         }
 
         /// <summary>The table's schema, known from the header alone.</summary>
-        public DbfSchema Schema { get; }
+        public VfpSchema Schema { get; }
 
-        internal DbfHeader Header
+        internal VfpHeader Header
         {
             get { return _header; }
         }
 
         internal Encoding Encoding { get; }
 
-        internal DbfReadOptions Options
+        internal VfpReadOptions Options
         {
             get { return _options; }
         }
 
-        internal Stream DbfStream
+        internal Stream VfpStream
         {
             get { return _dbf; }
         }
@@ -68,14 +68,14 @@ namespace VfpReader
         /// Opens the table at <paramref name="path"/> and reads its header. The table keeps the
         /// file open until it is disposed.
         /// </summary>
-        public static DbfTable Open(string path, DbfReadOptions? options = null)
+        public static VfpTable Open(string path, VfpReadOptions? options = null)
         {
             if (path is null)
             {
                 throw new ArgumentNullException(nameof(path));
             }
 
-            options ??= new DbfReadOptions();
+            options ??= new VfpReadOptions();
             var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             try
             {
@@ -92,14 +92,14 @@ namespace VfpReader
         /// Opens a table over caller-provided streams. The streams are left open; the caller owns
         /// them.
         /// </summary>
-        public static DbfTable Open(Stream dbf, Stream? memo = null, DbfReadOptions? options = null)
+        public static VfpTable Open(Stream dbf, Stream? memo = null, VfpReadOptions? options = null)
         {
             if (dbf is null)
             {
                 throw new ArgumentNullException(nameof(dbf));
             }
 
-            options ??= new DbfReadOptions();
+            options ??= new VfpReadOptions();
             return OpenCore(dbf, memo, ownsDbf: false, ownsMemo: false, options, null);
         }
 
@@ -123,12 +123,12 @@ namespace VfpReader
             }
         }
 
-        private static DbfTable OpenCore(
+        private static VfpTable OpenCore(
             Stream dbf,
             Stream? memo,
             bool ownsDbf,
             bool ownsMemo,
-            DbfReadOptions options,
+            VfpReadOptions options,
             string? path)
         {
             if (!dbf.CanRead)
@@ -152,8 +152,8 @@ namespace VfpReader
                 encoding = ResolveEncoding(codePage, path);
             }
 
-            DbfHeader header = HeaderParser.Parse(headerBytes, headerLength, encoding, codePage, path);
-            return new DbfTable(dbf, memo, ownsDbf, ownsMemo, options, header, encoding);
+            VfpHeader header = HeaderParser.Parse(headerBytes, headerLength, encoding, codePage, path);
+            return new VfpTable(dbf, memo, ownsDbf, ownsMemo, options, header, encoding);
         }
 
         private static byte[] ReadHeader(Stream dbf, string? path)
@@ -164,7 +164,7 @@ namespace VfpReader
             int headerLength = prefix[8] | (prefix[9] << 8);
             if (headerLength < HeaderParser.HeaderSize + 1)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(CultureInfo.InvariantCulture, "header length {0} is too small for any field", headerLength),
                     path,
                     8);
@@ -172,7 +172,7 @@ namespace VfpReader
 
             if (dbf.CanSeek && headerLength - HeaderParser.HeaderSize > dbf.Length - dbf.Position)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(CultureInfo.InvariantCulture, "header length {0} runs past the end of the file", headerLength),
                     path,
                     8);
@@ -196,7 +196,7 @@ namespace VfpReader
                 }
                 catch (IOException ex)
                 {
-                    throw new DbfFormatException(
+                    throw new VfpFormatException(
                         "failed while reading the table header",
                         path,
                         offset + read,
@@ -205,7 +205,7 @@ namespace VfpReader
 
                 if (n <= 0)
                 {
-                    throw new DbfFormatException(
+                    throw new VfpFormatException(
                         "unexpected end of file while reading the table header",
                         path,
                         offset + read);
@@ -223,7 +223,7 @@ namespace VfpReader
             }
             catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(
                         CultureInfo.InvariantCulture,
                         "Code page {0} is not available. On .NET Core, register the provider once at startup "
@@ -236,9 +236,9 @@ namespace VfpReader
             }
         }
 
-        private static DbfSchema BuildSchema(DbfHeader header)
+        private static VfpSchema BuildSchema(VfpHeader header)
         {
-            return new DbfSchema(
+            return new VfpSchema(
                 header.Version,
                 header.RecordCount,
                 header.HeaderLength,

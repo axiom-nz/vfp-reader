@@ -17,7 +17,7 @@ namespace VfpReader.Internal
         private const int DbBacklinkLength = 263;
         private const string NullFlagsFieldName = "_NullFlags";
 
-        internal static DbfHeader Parse(
+        internal static VfpHeader Parse(
             byte[] header,
             int headerLength,
             Encoding encoding,
@@ -26,7 +26,7 @@ namespace VfpReader.Internal
         {
             if (headerLength < HeaderSize)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(CultureInfo.InvariantCulture, "not a DBF file: header is only {0} bytes", headerLength),
                     path,
                     0);
@@ -34,7 +34,7 @@ namespace VfpReader.Internal
 
             if (header.Length < headerLength)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(CultureInfo.InvariantCulture, "not a DBF file: expected {0} header bytes but got {1}", headerLength, header.Length),
                     path,
                     0);
@@ -50,7 +50,7 @@ namespace VfpReader.Internal
 
             if (declaredHeaderLength < HeaderSize + 1)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(CultureInfo.InvariantCulture, "header length {0} is too small for any field", declaredHeaderLength),
                     path,
                     8);
@@ -58,7 +58,7 @@ namespace VfpReader.Internal
 
             if (declaredHeaderLength != headerLength)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(CultureInfo.InvariantCulture, "header length {0} does not match the {1} bytes read", declaredHeaderLength, headerLength),
                     path,
                     8);
@@ -66,7 +66,7 @@ namespace VfpReader.Internal
 
             if (recordLength < 1)
             {
-                throw new DbfFormatException("record length is 0", path, 10);
+                throw new VfpFormatException("record length is 0", path, 10);
             }
 
             DateTime? lastUpdate = ParseLastUpdate(header);
@@ -74,7 +74,7 @@ namespace VfpReader.Internal
             List<RawField> raw = ParseFieldDescriptors(header, headerLength, encoding, path);
             if (raw.Count == 0)
             {
-                throw new DbfFormatException("the table has no fields", path, HeaderSize);
+                throw new VfpFormatException("the table has no fields", path, HeaderSize);
             }
 
             if (!TryLayout(raw, recordLength, out int[] offsets, out int[] widths))
@@ -85,7 +85,7 @@ namespace VfpReader.Internal
                     needed += field.Length;
                 }
 
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     string.Format(
                         CultureInfo.InvariantCulture,
                         "record length {0} is too small for the {1} fields, which need {2} bytes",
@@ -109,7 +109,7 @@ namespace VfpReader.Internal
             int nullFlagsOffset = hidden >= 0 ? offsets[hidden] : 0;
             int nullFlagsWidth = hidden >= 0 ? widths[hidden] : 0;
 
-            var fields = new List<DbfField>(raw.Count);
+            var fields = new List<VfpField>(raw.Count);
             for (int i = 0; i < raw.Count; i++)
             {
                 if (i == hidden)
@@ -117,26 +117,26 @@ namespace VfpReader.Internal
                     continue;
                 }
 
-                DbfField field = raw[i].ToField(offsets[i], widths[i]);
+                VfpField field = raw[i].ToField(offsets[i], widths[i]);
                 fields.Add(field);
             }
 
             if (fields.Count == 0)
             {
-                throw new DbfFormatException("the table has no fields", path, HeaderSize);
+                throw new VfpFormatException("the table has no fields", path, HeaderSize);
             }
 
             AssignNullBits(fields);
 
             string databasePath = string.Empty;
-            if (DbfHeader.IsVisualFoxPro(version))
+            if (VfpHeader.IsVisualFoxPro(version))
             {
                 databasePath = ReadDatabaseBacklink(header, headerLength, encoding);
             }
 
-            bool hasMemo = hasMemoFlag || DbfHeader.VersionHasMemo(version) || DbfHeader.FieldsHaveMemo(fields.ToArray());
+            bool hasMemo = hasMemoFlag || VfpHeader.VersionHasMemo(version) || VfpHeader.FieldsHaveMemo(fields.ToArray());
 
-            return new DbfHeader(
+            return new VfpHeader(
                 version,
                 fields.ToArray(),
                 recordCount,
@@ -187,7 +187,7 @@ namespace VfpReader.Internal
                 int end = position + FieldDescriptorLength;
                 if (end > headerLength)
                 {
-                    throw new DbfFormatException(
+                    throw new VfpFormatException(
                         "a field descriptor runs past the end of the header",
                         path,
                         position);
@@ -199,7 +199,7 @@ namespace VfpReader.Internal
 
             if (!terminated)
             {
-                throw new DbfFormatException(
+                throw new VfpFormatException(
                     "the field descriptors are not terminated by 0x0D",
                     path,
                     position);
@@ -217,7 +217,7 @@ namespace VfpReader.Internal
             }
 
             string name = encoding.GetString(header, position, nameLength).Trim();
-            DbfFieldType type = DbfFieldTypes.FromByte(header[position + 11]);
+            VfpFieldType type = VfpFieldTypes.FromByte(header[position + 11]);
             byte length = header[position + 16];
             byte decimals = header[position + 17];
             byte flags = header[position + 18];
@@ -272,7 +272,7 @@ namespace VfpReader.Internal
                 bool hasWideCandidate = false;
                 foreach (RawField field in fields)
                 {
-                    if (field.Type == DbfFieldType.Character && field.Decimals > 0)
+                    if (field.Type == VfpFieldType.Character && field.Decimals > 0)
                     {
                         hasWideCandidate = true;
                         break;
@@ -290,10 +290,10 @@ namespace VfpReader.Internal
             return false;
         }
 
-        private static void AssignNullBits(List<DbfField> fields)
+        private static void AssignNullBits(List<VfpField> fields)
         {
             int bit = 0;
-            foreach (DbfField field in fields)
+            foreach (VfpField field in fields)
             {
                 if (field.IsNullable)
                 {
@@ -352,7 +352,7 @@ namespace VfpReader.Internal
         {
             internal RawField(
                 string name,
-                DbfFieldType type,
+                VfpFieldType type,
                 byte length,
                 byte decimals,
                 bool nullable,
@@ -376,7 +376,7 @@ namespace VfpReader.Internal
 
             internal string Name { get; }
 
-            internal DbfFieldType Type { get; }
+            internal VfpFieldType Type { get; }
 
             internal byte Length { get; }
 
@@ -396,14 +396,14 @@ namespace VfpReader.Internal
 
             internal int WidthForLayout(bool wideChar)
             {
-                return wideChar && Type == DbfFieldType.Character && Decimals > 0
+                return wideChar && Type == VfpFieldType.Character && Decimals > 0
                     ? Length + Decimals * 256
                     : Length;
             }
 
-            internal DbfField ToField(int offset, int width)
+            internal VfpField ToField(int offset, int width)
             {
-                return new DbfField(
+                return new VfpField(
                     Name,
                     Type,
                     Length,

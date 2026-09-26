@@ -67,7 +67,7 @@ namespace VfpReader.Tests.Fixtures
                 var visible = new List<ExpectedField>();
                 foreach (ExpectedField field in Fields)
                 {
-                    if (field.Type != (char)DbfFieldType.NullFlags)
+                    if (field.Type != (char)VfpFieldType.NullFlags)
                     {
                         visible.Add(field);
                     }

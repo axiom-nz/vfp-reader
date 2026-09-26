@@ -7,22 +7,22 @@ namespace VfpReader
     /// Every structural problem found while reading a table. Carries the file path and, where it
     /// is known, the byte offset at which the problem was found.
     /// </summary>
-    public sealed class DbfFormatException : Exception
+    public sealed class VfpFormatException : Exception
     {
         /// <summary>Creates an exception with no context beyond a message.</summary>
-        public DbfFormatException(string message)
+        public VfpFormatException(string message)
             : base(message)
         {
         }
 
         /// <summary>Creates an exception wrapping another failure.</summary>
-        public DbfFormatException(string message, Exception innerException)
+        public VfpFormatException(string message, Exception innerException)
             : base(message, innerException)
         {
         }
 
         /// <summary>Creates an exception naming the file and byte offset it was found at.</summary>
-        public DbfFormatException(string message, string? path, long? offset)
+        public VfpFormatException(string message, string? path, long? offset)
             : base(Compose(message, path, offset))
         {
             Path = path;
@@ -30,7 +30,7 @@ namespace VfpReader
         }
 
         /// <summary>Creates an exception naming the file, byte offset and an inner failure.</summary>
-        public DbfFormatException(string message, string? path, long? offset, Exception innerException)
+        public VfpFormatException(string message, string? path, long? offset, Exception innerException)
             : base(Compose(message, path, offset), innerException)
         {
             Path = path;
