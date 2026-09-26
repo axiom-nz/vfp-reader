@@ -1,0 +1,263 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
+using VfpReader.Internal;
+
+namespace VfpReader
+{
+    /// <summary>
+    /// One record of a table, decoded from the fixed-width record area. A row is a snapshot that
+    /// owns its bytes: it stays valid after the reader advances and after the table is disposed.
+    /// Values are decoded on demand, so an unused column is never decoded.
+    /// </summary>
+    public sealed class DbfRow
+    {
+        private const byte DeletedFlag = (byte)'*';
+
+        /// <summary>
+        /// The Julian Day Number of <see cref="DateTime.MinValue"/> under the proleptic Gregorian
+        /// calendar. A <c>T</c> / <c>@</c> field stores this number plus milliseconds.
+        /// </summary>
+        private const long JulianEpoch = 1721426L;
+
+        private readonly DbfHeader _header;
+        private readonly Encoding _encoding;
+        private readonly byte[] _record;
+        private readonly bool _trim;
+
+        internal DbfRow(DbfHeader header, Encoding encoding, byte[] record, long recordNumber, bool trim)
+        {
+            _header = header;
+            _encoding = encoding;
+            _record = record;
+            _trim = trim;
+            RecordNumber = recordNumber;
+        }
+
+        /// <summary>
+        /// The 1-based number of this record in the file. Deleted records that were skipped still
+        /// consume a number, so the numbers are not necessarily consecutive in a filtered stream.
+        /// </summary>
+        public long RecordNumber { get; }
+
+        /// <summary>Whether the record's deletion flag is <c>*</c>.</summary>
+        public bool IsDeleted
+        {
+            get { return _record.Length > 0 && _record[0] == DeletedFlag; }
+        }
+
+        /// <summary>The number of visible columns, the same as <see cref="DbfSchema.FieldCount"/>.</summary>
+        public int FieldCount
+        {
+            get { return _header.Fields.Length; }
+        }
+
+        /// <summary>
+        /// The decoded value of the field at <paramref name="index"/>: <c>C</c> is a
+        /// <see cref="string"/>, <c>N</c> a <see cref="decimal"/>, <c>F</c> / <c>B</c> / <c>O</c>
+        /// a <see cref="double"/>, <c>I</c> / <c>+</c> an <see cref="int"/>, <c>Y</c> a
+        /// <see cref="decimal"/>, <c>L</c> a <see cref="bool"/>, <c>D</c> / <c>T</c> / <c>@</c> a
+        /// <see cref="DateTime"/>, and <c>Unknown</c> a <c>byte[]</c>. A blank or unparseable
+        /// fixed value is <c>null</c>.
+        /// </summary>
+        public object? this[int index]
+        {
+            get
+            {
+                if (index < 0 || index >= _header.Fields.Length)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                }
+
+                return ReadField(_header.Fields[index]);
+            }
+        }
+
+        /// <summary>The decoded value of the field called <paramref name="name"/>. Case-insensitive.</summary>
+        /// <exception cref="KeyNotFoundException">No field has that name.</exception>
+        public object? this[string name]
+        {
+            get
+            {
+                if (name is null)
+                {
+                    throw new ArgumentNullException(nameof(name));
+                }
+
+                int index = _header.FieldIndex(name);
+                if (index < 0)
+                {
+                    throw new KeyNotFoundException("no field named " + name);
+                }
+
+                return ReadField(_header.Fields[index]);
+            }
+        }
+
+        private object? ReadField(DbfField field)
+        {
+            switch (field.Type)
+            {
+                case DbfFieldType.Character:
+                    return field.IsBinary ? ReadBytes(field) : ReadCharacter(field);
+
+                case DbfFieldType.Numeric:
+                    return ReadNumeric(field);
+
+                case DbfFieldType.Float:
+                    return ReadFloat(field);
+
+                case DbfFieldType.Integer:
+                case DbfFieldType.AutoIncrement:
+                    return ReadInt32(field.Offset);
+
+                case DbfFieldType.Currency:
+                    return (decimal)ReadInt64(field.Offset) / 10000m;
+
+                case DbfFieldType.Double:
+                case DbfFieldType.DoubleO:
+                    return BitConverter.Int64BitsToDouble(ReadInt64(field.Offset));
+
+                case DbfFieldType.Logical:
+                    return ReadLogical(_record[field.Offset]);
+
+                case DbfFieldType.Date:
+                    return ReadDate(field.Offset);
+
+                case DbfFieldType.DateTime:
+                case DbfFieldType.DateTimeAt:
+                    return ReadDateTime(field.Offset);
+
+                case DbfFieldType.Memo:
+                case DbfFieldType.General:
+                case DbfFieldType.Picture:
+                case DbfFieldType.Blob:
+                    throw new NotSupportedException(
+                        "Reading memo fields (type " + (char)field.Type + ") is not implemented yet.");
+
+                case DbfFieldType.Varchar:
+                case DbfFieldType.Varbinary:
+                    throw new NotSupportedException(
+                        "Reading varlength fields (type " + (char)field.Type + ") is not implemented yet.");
+
+                default:
+                    return ReadBytes(field);
+            }
+        }
+
+        private string ReadCharacter(DbfField field)
+        {
+            string text = _encoding.GetString(_record, field.Offset, field.Width);
+            return _trim ? text.TrimEnd(' ', '\0') : text;
+        }
+
+        private byte[] ReadBytes(DbfField field)
+        {
+            var bytes = new byte[field.Width];
+            Buffer.BlockCopy(_record, field.Offset, bytes, 0, field.Width);
+            return bytes;
+        }
+
+        private object? ReadNumeric(DbfField field)
+        {
+            string text = _encoding.GetString(_record, field.Offset, field.Width).Trim();
+            if (text.Length == 0)
+            {
+                return null;
+            }
+
+            return decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value)
+                ? value
+                : (object?)null;
+        }
+
+        private object? ReadFloat(DbfField field)
+        {
+            string text = _encoding.GetString(_record, field.Offset, field.Width).Trim();
+            if (text.Length == 0)
+            {
+                return null;
+            }
+
+            return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+                ? value
+                : (object?)null;
+        }
+
+        private static bool? ReadLogical(byte value)
+        {
+            switch (value)
+            {
+                case (byte)'T':
+                case (byte)'t':
+                case (byte)'Y':
+                case (byte)'y':
+                    return true;
+
+                case (byte)'F':
+                case (byte)'f':
+                case (byte)'N':
+                case (byte)'n':
+                    return false;
+
+                default:
+                    return null;
+            }
+        }
+
+        private DateTime? ReadDate(int offset)
+        {
+            // D is eight ASCII digits, YYYYMMDD. A blank or impossible date reads as null.
+            string text = Encoding.ASCII.GetString(_record, offset, 8).Trim('\0', ' ');
+            if (text.Length != 8)
+            {
+                return null;
+            }
+
+            return DateTime.TryParseExact(
+                text,
+                "yyyyMMdd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out DateTime value)
+                ? value
+                : (DateTime?)null;
+        }
+
+        private DateTime? ReadDateTime(int offset)
+        {
+            // T / @ are a 4-byte little-endian Julian day number plus milliseconds after midnight.
+            int julianDay = ReadInt32(offset);
+            int milliseconds = ReadInt32(offset + 4);
+            if (julianDay == 0)
+            {
+                return null;
+            }
+
+            long ticks = ((long)julianDay - JulianEpoch) * TimeSpan.TicksPerDay
+                + (long)milliseconds * TimeSpan.TicksPerMillisecond;
+            if (ticks < 0 || ticks > DateTime.MaxValue.Ticks)
+            {
+                return null;
+            }
+
+            return DateTime.MinValue.AddTicks(ticks);
+        }
+
+        private int ReadInt32(int offset)
+        {
+            return _record[offset]
+                | (_record[offset + 1] << 8)
+                | (_record[offset + 2] << 16)
+                | (_record[offset + 3] << 24);
+        }
+
+        private long ReadInt64(int offset)
+        {
+            long low = (uint)ReadInt32(offset);
+            long high = (uint)ReadInt32(offset + 4);
+            return low | (high << 32);
+        }
+    }
+}
