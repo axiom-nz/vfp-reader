@@ -188,7 +188,7 @@ namespace VfpReader.Tests
 
             using VfpTable table = Open(builder, new VfpReadOptions { TrimCharacterFields = false });
 
-            Assert.Equal("ab \0\0", Assert.Single(table.ReadRows())["NAME"]);
+            Assert.Equal("ab \0\0\0", Assert.Single(table.ReadRows())["NAME"]);
         }
 
         [Fact]
@@ -228,7 +228,7 @@ namespace VfpReader.Tests
         }
 
         [Fact]
-        public void Memo_value_is_rejected_but_the_row_enumerates()
+        public void Memo_value_reads_null_without_a_memo_file_but_the_row_enumerates()
         {
             var builder = new DbfBuilder { Version = 0x30 };
             builder.AddField("NOTES", 'M', 10);
@@ -237,7 +237,8 @@ namespace VfpReader.Tests
             using VfpTable table = Open(builder);
             VfpRow row = Assert.Single(table.ReadRows());
 
-            Assert.Throws<NotSupportedException>(() => row["NOTES"]);
+            // Phase 3: a memo column is readable; with no memo stream it is empty (D13).
+            Assert.Null(row["NOTES"]);
         }
 
         [Fact]

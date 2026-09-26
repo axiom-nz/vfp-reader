@@ -107,11 +107,15 @@ namespace VfpReader.Tests
         [Fact]
         public void Dbase4_length_past_eof_is_clamped()
         {
-            // A header claims 0x7FFFFFFF bytes; only "abc" follows.
-            byte[] memo = Dbase4Bytes(0x7FFFFFFF, Encoding.ASCII.GetBytes("abc"));
+            // A header claims 0x7FFFFFFF bytes; only "abc" follows in the file.
+            var memo = new List<byte>(new byte[512]);
+            memo.AddRange(new byte[] { 0xFF, 0xFF, 0x08, 0x00 });
+            memo.AddRange(BitConverter.GetBytes(0x7FFFFFFFu));
+            memo.AddRange(Encoding.ASCII.GetBytes("abc"));
+
             byte[] dbf = MemoTable(0x8b, 'M', 10, AsciiPointer(1));
 
-            using VfpTable table = Open(dbf, memo);
+            using VfpTable table = Open(dbf, memo.ToArray());
             VfpRow row = Assert.Single(table.ReadRows());
 
             Assert.Equal("abc", row["MEMO"]);
@@ -375,12 +379,13 @@ namespace VfpReader.Tests
         /// <summary>Builds a dBASE IV memo file with one block: 8-byte header then the payload.</summary>
         private static byte[] Dbase4Blocks(byte[] payload)
         {
-            return Dbase4Bytes(payload.Length, payload);
+            return Dbase4Bytes((uint)payload.Length, payload);
         }
 
         private static byte[] Dbase4Bytes(uint length, byte[] payload)
         {
-            var bytes = new List<byte> { 0xFF, 0xFF, 0x08, 0x00 };
+            var bytes = new List<byte>(new byte[512]);
+            bytes.AddRange(new byte[] { 0xFF, 0xFF, 0x08, 0x00 });
             bytes.AddRange(BitConverter.GetBytes(length));
             bytes.AddRange(payload);
             bytes.AddRange(new byte[8]);
