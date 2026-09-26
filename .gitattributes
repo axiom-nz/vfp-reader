@@ -1,3 +1,11 @@
-# Fixture tables and their golden files are compared as bytes. Git must not
-# convert line endings in them, even on a checkout with core.autocrlf=true.
-test/fixtures/** binary
+# Real tables, memos and index/container files are compared as bytes. Git must
+# not convert line endings in them, even on a checkout with core.autocrlf=true.
+# Everything else under test/fixtures (README, NOTICE, *_summary.txt, *.yml)
+# stays text so it diffs and reviews normally.
+test/fixtures/**/*.[Dd][Bb][Ff] binary
+test/fixtures/**/*.[Ff][Pp][Tt] binary
+test/fixtures/**/*.[Dd][Bb][Tt] binary
+test/fixtures/**/*.[Cc][Dd][Xx] binary
+test/fixtures/**/*.[Dd][Bb][Cc] binary
+test/fixtures/**/*.[Dd][Cc][Xx] binary
+test/fixtures/**/*.[Dd][Cc][Tt] binary
