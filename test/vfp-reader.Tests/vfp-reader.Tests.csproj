@@ -16,10 +16,20 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\vfp-reader\vfp-reader.csproj" />
+  </ItemGroup>
+
+  <!-- The real fixture corpus and its golden outputs are data, not compile inputs.
+       Copy them next to the test binaries so tests never depend on the source tree. -->
+  <ItemGroup>
+    <Content Include="..\fixtures\**\*">
+      <Link>fixtures\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

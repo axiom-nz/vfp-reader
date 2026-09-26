@@ -54,7 +54,7 @@ name; it does not overwrite `ruby-dbf/dbase_31.dbf`.
 
 - `dbase_31_nullflags.dbf` — the table.
 - `dbase_31_nullflags_summary.txt` — upstream `dbase_31_summary.txt`.
-- `dbase_31_nullflags.csv` — upstream golden rows, every cell, plus a trailing `deleted` column.
+- `dbase_31_nullflags.csv` — upstream golden rows, every cell, including the hidden `_NullFlags` column. (Unlike DbfDataReader's `dbase_03.csv`, this dump has no trailing `deleted` column.)
 
 ## Using the golden files
 
