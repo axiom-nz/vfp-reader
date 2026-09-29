@@ -1,0 +1,73 @@
+name: Release
+
+# Runs when a GitHub release is published. The release's tag drives the package
+# version, e.g. tag v0.1.0 -> NuGet version 0.1.0.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  # Required by NuGet/login for OIDC trusted publishing.
+  id-token: write
+
+jobs:
+  pack-and-publish:
+    name: Pack and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Full history so Source Link can attach the exact commit.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Derive version from release tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test
+        run: dotnet test -c Release --no-restore
+
+      - name: Pack
+        run: >
+          dotnet pack src/vfp-reader/vfp-reader.csproj
+          -c Release
+          --no-restore
+          -p:Version=${{ steps.version.outputs.value }}
+          -p:ContinuousIntegrationBuild=true
+          -o artifacts
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v7
+        with:
+          name: nupkg-${{ steps.version.outputs.value }}
+          path: artifacts/*.nupkg
+          if-no-files-found: error
+
+      - name: Log in to NuGet.org (trusted publishing)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          # Must match the nuget.org account username that owns the package.
+          user: axiom-nz
+
+      - name: Push to NuGet.org
+        run: >
+          dotnet nuget push artifacts/*.nupkg
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      # Classic fallback (no OIDC): add a NUGET_API_KEY repository secret and
+      # replace the two steps above with a single push using
+      # --api-key "${{ secrets.NUGET_API_KEY }}".

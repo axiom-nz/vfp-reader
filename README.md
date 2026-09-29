@@ -34,8 +34,13 @@ Not available yet:
   System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
   ```
 
-No NuGet package is published yet; reference `src/vfp-reader` as a project, or build and pack it
-from source.
+Install the package from NuGet:
+
+```shell
+dotnet add package VfpReader
+```
+
+Alternatively, reference `src/vfp-reader` as a project and build from source.
 
 ## Supported tables
 

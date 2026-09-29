@@ -8,13 +8,24 @@
     <Version>0.1.0</Version>
     <Title>VFP / dBase table reader</Title>
     <Description>Read-only, streaming reader for Visual FoxPro, FoxPro 2.x and dBASE III .dbf tables and their .fpt / .dbt memo files.</Description>
+    <Authors>axiom-nz</Authors>
+    <Copyright>Copyright (c) axiom-nz 2026</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>dbf;foxpro;visual-foxpro;dbase;memo;fpt;dbt</PackageTags>
+    <PackageProjectUrl>https://github.com/axiom-nz/vfp-reader</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/axiom-nz/vfp-reader</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>Initial release: streaming, read-only reader for Visual FoxPro, FoxPro 2.x and dBASE III .dbf tables and their .fpt / .dbt memo files.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Memory" Version="4.5.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The repository README is shown on the package page and in client UIs. -->
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>
