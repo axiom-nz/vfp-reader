@@ -22,17 +22,27 @@ namespace VfpReader.Tests.Fixtures
 
         public bool FileExists(string path)
         {
-            return _files.ContainsKey(path);
+            return _files.ContainsKey(Normalize(path));
         }
 
         public Stream OpenRead(string path)
         {
-            if (!_files.TryGetValue(path, out byte[]? bytes))
+            if (!_files.TryGetValue(Normalize(path), out byte[]? bytes))
             {
                 throw new FileNotFoundException("The fake storage has no such file.", path);
             }
 
             return new MemoryStream(bytes, writable: false);
+        }
+
+        /// <summary>
+        /// Folds Windows and Unix directory separators together so the fake matches the same
+        /// logical file on every platform: the reader builds sibling paths with
+        /// <see cref="Path.Combine(string, string)"/>, which emits a backslash on Windows.
+        /// </summary>
+        private static string Normalize(string path)
+        {
+            return path.Replace('\\', '/');
         }
     }
 

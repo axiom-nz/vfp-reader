@@ -94,7 +94,7 @@ namespace VfpReader.Tests
         [Fact]
         public void Every_code_page_matches_the_runtime()
         {
-            foreach (CodePage page in Enum.GetValues<CodePage>())
+            foreach (CodePage page in (CodePage[])Enum.GetValues(typeof(CodePage)))
             {
                 Assert.Equal((int)page, Encoding.GetEncoding((int)page).CodePage);
             }

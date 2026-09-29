@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net472</TargetFrameworks>
     <AssemblyName>VfpReader</AssemblyName>
     <RootNamespace>VfpReader</RootNamespace>
     <PackageId>VfpReader</PackageId>
@@ -20,7 +20,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <!-- 4.6.3's .NET Framework asset is assembly 4.0.5.0, which is the version the
+         .NET SDK's net472 testhost binding-redirects System.Memory to. Staying on
+         4.5.5 (assembly 4.0.1.2) makes the testhost load the wrong file. -->
+    <PackageReference Include="System.Memory" Version="4.6.3" />
+  </ItemGroup>
+
+  <!-- Lets the Linux release runner compile the .NET Framework leg without a Windows toolchain.
+       The single net472 build is what runs on 4.7.2 through 4.8.2 (there is no net482 TFM). -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
