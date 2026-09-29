@@ -27,7 +27,7 @@ Not available yet:
 
 ## Requirements
 
-- The library targets `netstandard2.0`, so it runs on .NET Framework 4.7.2+ and .NET 9+.
+- The library targets `netstandard2.0`, so it runs on .NET Framework 4.7.2+ and .NET 10+.
 - Non-UTF-8 tables on .NET Core / .NET 5+ need the code-page provider registered once at startup:
 
   ```csharp
