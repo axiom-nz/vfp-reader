@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <!-- Opt-in on Windows CI so the suite runs against the real .NET Framework runtime. -->
+    <TargetFrameworks Condition="'$(IncludeNetFrameworkTests)' == 'true'">net10.0;net472</TargetFrameworks>
     <AssemblyName>VfpReader.Tests</AssemblyName>
     <RootNamespace>VfpReader.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
@@ -20,6 +22,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\vfp-reader\vfp-reader.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- The real fixture corpus and its golden outputs are data, not compile inputs.
